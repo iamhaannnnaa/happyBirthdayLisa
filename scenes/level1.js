@@ -12,12 +12,13 @@ export default class Level1 extends Phaser.Scene {
     this.load.image("l1_fore",  "assets/backgrounds/level1_fore.png");
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
 
-    // Taucher (5 Frames à 384x384 → 1920x384) + Cache-Buster
-    this.load.spritesheet("diver", "assets/sprites/diver.png?v=4", {
-      frameWidth: 384, frameHeight: 384, endFrame: 4
+    // Taucherin (6 Frames à 256x1024 → 1536x1024) + Cache-Buster
+    this.load.spritesheet("diver", "assets/sprites/diver.png?v=5", {
+      frameWidth: 256,
+      frameHeight: 1024
     });
 
-    // Münze + Drückerfisch (Cache-Buster optional)
+    // Münze + Drückerfisch
     this.load.image("coin", "assets/objects/coin.png");
     this.load.image("triggerfish", "assets/objects/triggerfish.png?v=2");
 
@@ -28,19 +29,17 @@ export default class Level1 extends Phaser.Scene {
 
   create(){
     const W=1920,H=1080;
-
-    // Kamera
     this.cameras.main.setBackgroundColor("#06121f");
     this.cameras.main.setBounds(0,0,W,H);
     this.cameras.main.setRoundPixels(true);
 
-    // Sichtbarer Check: echte PNG-Größe & Frames
+    // Debug-Info zur Taucherin
     if (DEBUG && this.textures.exists("diver")) {
       const t = this.textures.get("diver");
       const w = t.getSourceImage().width, h = t.getSourceImage().height;
       const frames = t.frameTotal;
-      this.add.text(16,16,`diver.png: ${w}x${h}, frames=${frames} (soll 1920x384, 5)`,{
-        fontFamily:"monospace",fontSize:"16px",color:"#ffeb3b",backgroundColor:"#0008",padding:{x:8,y:6}
+      this.add.text(16,16,`diver.png: ${w}x${h}, frames=${frames} (soll 1536x1024, 6)`,{
+        fontFamily:"monospace", fontSize:"16px", color:"#ffeb3b", backgroundColor:"#0008", padding:{x:8,y:6}
       }).setScrollFactor(0).setDepth(1000);
     }
 
@@ -52,12 +51,11 @@ export default class Level1 extends Phaser.Scene {
       ? this.add.tileSprite(0,0,W,H,"caustics").setOrigin(0,0).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.18).setScrollFactor(0.7)
       : null;
 
-    // Spieler
+    // Spielerin
     this.player = this.textures.exists("diver")
-      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.55)
+      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.28)   // Taucherin kleiner machen
       : this.physics.add.image(W*0.25,H*0.55, this.makeFallbackTex());
 
-    // Physik: Drag (kein Damping) → keine Selbstbewegung
     this.player.setCollideWorldBounds(true);
     this.player.body.setDrag(600, 600);
     this.player.body.setMaxVelocity(320, 320);
@@ -65,16 +63,26 @@ export default class Level1 extends Phaser.Scene {
 
     // Animationen
     if (this.textures.exists("diver")) {
-      this.anims.create({ key:"diver_swim", frames:this.anims.generateFrameNumbers("diver",{start:0,end:4}), frameRate:12, repeat:-1 });
-      this.anims.create({ key:"diver_idle", frames:this.anims.generateFrameNumbers("diver",{start:0,end:1}), frameRate:2, repeat:-1 });
+      this.anims.create({
+        key:"diver_swim",
+        frames:this.anims.generateFrameNumbers("diver",{start:0,end:5}), // 6 Frames
+        frameRate:12,
+        repeat:-1
+      });
+      this.anims.create({
+        key:"diver_idle",
+        frames:this.anims.generateFrameNumbers("diver",{start:0,end:1}),
+        frameRate:2,
+        repeat:-1
+      });
       this.player.play("diver_idle");
     }
 
-    // Kamera-Follow
+    // Kamera & Steuerung
     this.cursors = this.input.keyboard.addKeys({ left:"LEFT", right:"RIGHT", up:"UP", down:"DOWN", a:"A", d:"D", w:"W", s:"S", esc:"ESC" });
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
-    // Bubbles (Deko, leicht reduziert)
+    // Bubbles (Deko)
     this.bubbles = this.add.container(0,0).setScrollFactor(0.6);
     for (let i=0;i<20;i++) this.bubbles.add(this.makeBubble(W,H));
 
@@ -113,11 +121,10 @@ export default class Level1 extends Phaser.Scene {
   update(t, dt){
     if (this.gameOver) return;
 
-    // Bubbles & Caustics
     this.bubbles.iterate(c => c.update && c.update());
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
 
-    // Bewegung: direkte Velocity + Drag bremst aus, kein Drift
+    // Eingaben
     const speed = 300;
     const ix = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
              + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
@@ -128,12 +135,11 @@ export default class Level1 extends Phaser.Scene {
       const len = Math.hypot(ix, iy) || 1;
       this.player.body.setVelocity((ix/len)*speed, (iy/len)*speed);
     } else {
-      // Drag lässt sie zur Ruhe kommen; snap auf 0, damit Idle sofort sauber ist
       if (Math.abs(this.player.body.velocity.x) < 6) this.player.body.setVelocityX(0);
       if (Math.abs(this.player.body.velocity.y) < 6) this.player.body.setVelocityY(0);
     }
 
-    // Animationen umschalten ohne Neustarts
+    // Animationen
     if (this.textures.exists("diver")) {
       if (ix!==0 || iy!==0) {
         if (this.player.anims.currentAnim?.key!=="diver_swim") this.player.play("diver_swim");
@@ -152,8 +158,8 @@ export default class Level1 extends Phaser.Scene {
     const margin = 40;
     const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
     const avoids = [
-      { x: W*0.12, y: H*0.45, w: 420, h: 300 }, // Spieler-Start
-      { x: 0,      y: 0,      w: 360, h: 120 }  // HUD oben links
+      { x: W*0.12, y: H*0.45, w: 420, h: 300 },
+      { x: 0,      y: 0,      w: 360, h: 120 }
     ];
 
     const positions = this.distributePoints({
@@ -179,7 +185,7 @@ export default class Level1 extends Phaser.Scene {
     if (this.collected>=this.totalCoins) this.win();
   }
 
-  // ---- Gegner: Drückerfisch (klein) ----
+  // ---- Triggerfische ----
   spawnTriggerfish(){
     const W=1920, H=1080;
     this.fishGroup = this.physics.add.group({ allowGravity:false });
@@ -187,8 +193,8 @@ export default class Level1 extends Phaser.Scene {
     const margin = 60;
     const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
     const avoids = [
-      { x: W*0.10, y: H*0.40, w: 520, h: 360 }, // Startbereich
-      { x: 0,      y: 0,      w: 360, h: 140 }  // HUD
+      { x: W*0.10, y: H*0.40, w: 520, h: 360 },
+      { x: 0,      y: 0,      w: 360, h: 140 }
     ];
 
     const fishCount = 6;
@@ -199,17 +205,14 @@ export default class Level1 extends Phaser.Scene {
     fishPos.forEach(([x,y],i)=>{
       const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
-      // feste Zielbreite → garantiert klein
-      const targetW = 80;                        // << hier Größe steuern (60..120)
+      const targetW = 80;   // Breite in px → kleine Fische
       const baseW   = f.width;
       const scale   = targetW / baseW;
       f.setScale(scale);
 
-      // ovale Hitbox passend
       const bw = f.displayWidth*0.75, bh = f.displayHeight*0.55;
       f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
 
-      // Patrouille (zufällig horizontal/vertikal/diagonal)
       const mode = Phaser.Math.Between(0,2);
       const rx   = Phaser.Math.Between(140, 260);
       const ry   = Phaser.Math.Between(120, 220);
