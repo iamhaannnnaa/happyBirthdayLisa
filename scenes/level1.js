@@ -77,7 +77,7 @@ export default class Level1 extends Phaser.Scene {
     this.oxyBar = this.makeOxygenBar();
     this.time.addEvent({ delay: 1000, loop: true, callback: ()=> {
       if (this.gameOver) return;
-      this.oxygen = Math.max(0, this.oxygen-1);
+      this.oxygen = Math.max(0, this.oxygen-2);
       this.updateOxygenBar();
       if (this.oxygen<=0) this.fail("Keine Luft mehr!");
     }});
@@ -184,7 +184,7 @@ spawnTriggerfish(){
 
   fishPos.forEach(([x,y],i)=>{
     const f = this.fishGroup.create(x,y,"triggerfish")
-      .setScale(Phaser.Math.FloatBetween(0.30, 0.40)) // leichte Größenvarianz
+      .setScale(Phaser.Math.FloatBetween(0.18, 0.24)) // leichte Größenvarianz
       .setAlpha(0.95);
 
     // ovale Hitbox
