@@ -201,7 +201,7 @@ export default class Level1 extends Phaser.Scene {
       const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
       // feste Zielbreite → garantiert klein
-      const targetW = 120;                       // bei Bedarf 90/100/140 etc.
+      const targetW = 200;                       // bei Bedarf 90/100/140 etc.
       const baseW   = f.width;
       const scale   = targetW / baseW;
       f.setScale(scale);
@@ -240,7 +240,7 @@ export default class Level1 extends Phaser.Scene {
   hitTriggerfish(){
     if (this.gameOver) return;
     // Sauerstoff-Penalty & kurzer Rückstoß
-    this.oxygen = Math.max(0, this.oxygen-8);
+    this.oxygen = Math.max(0, this.oxygen-1);
     this.updateOxygenBar();
     const knock = new Phaser.Math.Vector2(this.player.body.velocity).normalize().scale(-260);
     this.player.body.velocity.add(knock);
