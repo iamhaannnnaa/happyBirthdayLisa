@@ -17,7 +17,7 @@ export default class Level1 extends Phaser.Scene {
   frameWidth: 256,     // 1536 / 6
   frameHeight: 1024,   // 1 Reihe
   margin: 0,           // wenn links ein Rand ist, hier erhöhen (z. B. 16/24/32)
-  spacing: 32,         // <<< Abstand zwischen den Frames. Bei Bedarf feinjustieren
+  spacing: 0,         // <<< Abstand zwischen den Frames. Bei Bedarf feinjustieren
   endFrame: 5          // nur 0..5 = 6 Frames
 });
 
@@ -57,7 +57,7 @@ export default class Level1 extends Phaser.Scene {
 
     // Spielerin
     this.player = this.textures.exists("diver")
-      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.9)   // Taucherin kleiner machen
+      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.65)   // Taucherin kleiner machen
       : this.physics.add.image(W*0.25,H*0.55, this.makeFallbackTex());
 
     this.player.setCollideWorldBounds(true);
@@ -171,7 +171,7 @@ export default class Level1 extends Phaser.Scene {
     });
 
     positions.forEach(([x,y])=>{
-      const c = this.coins.create(x,y,"coin").setScale(0.5);
+      const c = this.coins.create(x,y,"coin").setScale(0.4);
       c.setAlpha(0.95);
       this.tweens.add({ targets:c, y:y-12, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
     });
