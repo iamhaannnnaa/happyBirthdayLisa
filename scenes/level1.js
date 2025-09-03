@@ -127,7 +127,7 @@ export default class Level1 extends Phaser.Scene {
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
 
     // Eingaben
-    const speed = 300;
+    const speed = 400;
     const ix = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
              + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
     const iy = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
@@ -207,7 +207,7 @@ export default class Level1 extends Phaser.Scene {
     fishPos.forEach(([x,y],i)=>{
       const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
-      const targetW = 200;   // Breite in px → kleine Fische
+      const targetW = 250;   // Breite in px → kleine Fische
       const baseW   = f.width;
       const scale   = targetW / baseW;
       f.setScale(scale);
