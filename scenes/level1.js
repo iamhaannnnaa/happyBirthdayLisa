@@ -70,7 +70,7 @@ export default class Level1 extends Phaser.Scene {
       this.anims.create({
         key:"diver_swim",
         frames:this.anims.generateFrameNumbers("diver",{start:0,end:15}), // 6 Frames
-        frameRate:14,
+        frameRate:10,
         repeat:-1
       });
       this.anims.create({
@@ -129,7 +129,7 @@ export default class Level1 extends Phaser.Scene {
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
 
     // Eingaben
-    const speed = 400;
+    const speed = 300;
     const ix = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
              + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
     const iy = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
@@ -147,7 +147,7 @@ export default class Level1 extends Phaser.Scene {
     if (this.textures.exists("diver")) {
       if (ix!==0 || iy!==0) {
         if (this.player.anims.currentAnim?.key!=="diver_swim") this.player.play("diver_swim");
-        this.player.setFlipX(ix < 0);
+        this.player.setFlipX(ix > 0);   // <<< invertiert
       } else {
         if (this.player.anims.currentAnim?.key!=="diver_idle") this.player.play("diver_idle");
       }
