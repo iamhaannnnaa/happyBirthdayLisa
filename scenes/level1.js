@@ -201,7 +201,7 @@ export default class Level1 extends Phaser.Scene {
       const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
       // feste Zielbreite → garantiert klein
-      const targetW = 200;                       // bei Bedarf 90/100/140 etc.
+      const targetW = 250;                       // bei Bedarf 90/100/140 etc.
       const baseW   = f.width;
       const scale   = targetW / baseW;
       f.setScale(scale);
