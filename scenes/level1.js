@@ -65,7 +65,7 @@ export default class Level1 extends Phaser.Scene {
     // --- SPIELZUSTAND ---
     this.totalCoins = 8;
     this.collected  = 0;
-    this.oxygenMax  = 10; // Sekunden
+    this.oxygenMax  = 5; // Sekunden
     this.oxygen     = this.oxygenMax;
     this.gameOver   = false;
 
@@ -123,26 +123,34 @@ export default class Level1 extends Phaser.Scene {
   }
 
   // ---- Coins ----
- spawnCoins(){
+spawnCoins(){
   const W=1920, H=1080;
   this.coins = this.physics.add.group({ allowGravity:false, immovable:true });
 
-  // Punkte halbwegs gleichmäßig verteilen (Poisson-ähnlich)
+  const margin = 40;
+  const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
+
+  const avoids = [
+    { x: W*0.12, y: H*0.45, w: 420, h: 300 }, // Spieler-Start
+    { x: 0,      y: 0,      w: 360, h: 120 }  // HUD oben links
+  ];
+
   const positions = this.distributePoints({
     count: this.totalCoins,
-    minDist: 180,                 // Mindestabstand zwischen Coins
-    bounds: { x: 120, y: 140, w: W-240, h: H-260 }, // Rand lassen
-    avoid:  { x: W*0.20, y: H*0.45, w: 360, h: 260 } // Startbereich des Spielers meiden
+    minDist: 220,                 // größerer Abstand → breitere Verteilung
+    bounds,
+    avoids
   });
 
   positions.forEach(([x,y])=>{
     const c = this.coins.create(x,y,"coin").setScale(0.5);
     c.setAlpha(0.95);
-    this.tweens.add({ targets:c, y:y-10, duration:1300, yoyo:true, repeat:-1, ease:"sine.inOut" });
+    this.tweens.add({ targets:c, y:y-12, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
   });
 
   this.physics.add.overlap(this.player, this.coins, (_p, coin)=> this.collectCoin(coin));
 }
+
 
   collectCoin(coin){
     if (!coin.active) return;
@@ -159,32 +167,45 @@ spawnTriggerfish(){
   const W=1920, H=1080;
   this.fishGroup = this.physics.add.group({ allowGravity:false });
 
-  // 5 Fische breit streuen
+  const margin = 60;
+  const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
+  const avoids = [
+    { x: W*0.10, y: H*0.40, w: 520, h: 360 }, // Startbereich großzügiger meiden
+    { x: 0,      y: 0,      w: 360, h: 140 }  // HUD
+  ];
+
+  const fishCount = 6; // gern erhöhen/ senken
   const fishPos = this.distributePoints({
-    count: 5,
-    minDist: 260,                                   // weiter auseinander
-    bounds: { x: 180, y: 160, w: W-360, h: H-320 }, // großzügiger Rand
-    avoid:  { x: W*0.18, y: H*0.42, w: 420, h: 300 } // Spielerstart meiden
+    count: fishCount,
+    minDist: 320,  // weit auseinander
+    bounds,
+    avoids
   });
 
   fishPos.forEach(([x,y],i)=>{
-    const f = this.fishGroup.create(x,y,"triggerfish").setScale(0.35).setAlpha(0.95);
+    const f = this.fishGroup.create(x,y,"triggerfish")
+      .setScale(Phaser.Math.FloatBetween(0.30, 0.40)) // leichte Größenvarianz
+      .setAlpha(0.95);
 
     // ovale Hitbox
     const bw = f.displayWidth*0.75, bh = f.displayHeight*0.55;
     f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
 
-    // Zufällige Patrouille: horizontal ODER vertikal
-    const horizontal = Math.random() < 0.6;    // 60% horizontal
-    const range = Phaser.Math.Between(120, 220);
-    const dur   = Phaser.Math.Between(2200, 3200);
-    const angle = horizontal ? 6 : 0;
+    // Zufällige Patrouillenart
+    const mode = Phaser.Math.Between(0,2); // 0: horizontal, 1: vertikal, 2: diagonal
+    const rx = Phaser.Math.Between(140, 260);
+    const ry = Phaser.Math.Between(120, 220);
+    const dur = Phaser.Math.Between(2200, 3200);
+    const ang = (mode===0 ? 6 : mode===1 ? 0 : 4) * (i%2?-1:1);
+
+    const target = { x: x + (mode!==1 ? (i%2?-rx:rx) : 0),
+                     y: y + (mode!==0 ? (i%2?-ry:ry) : 0) };
 
     this.tweens.add({
       targets: f,
-      x: horizontal ? x + range : x,
-      y: horizontal ? y : y + range,
-      angle: (i%2 ? -angle : angle),
+      x: target.x,
+      y: target.y,
+      angle: ang,
       duration: dur,
       yoyo: true,
       repeat: -1,
@@ -195,6 +216,7 @@ spawnTriggerfish(){
 
   this.physics.add.overlap(this.player, this.fishGroup, ()=> this.hitTriggerfish());
 }
+
 
   hitTriggerfish(){
     if (this.gameOver) return;
@@ -256,9 +278,10 @@ spawnTriggerfish(){
 
   // ---- Helpers ----
   // verteilt 'count' Punkte gleichmäßig in bounds, mit Mindestabstand + Avoid-Rect
-distributePoints({ count, minDist, bounds, avoid }){
+// verteilt 'count' Punkte flächig in bounds, mit Mindestabstand und mehreren Avoid-Rechtecken
+distributePoints({ count, minDist, bounds, avoids = [] }){
   const pts = [];
-  const maxTries = 2000;
+  const maxTries = 4000;
 
   const within = ()=>[
     Phaser.Math.Between(bounds.x, bounds.x + bounds.w),
@@ -270,8 +293,11 @@ distributePoints({ count, minDist, bounds, avoid }){
   while (pts.length < count && tries < maxTries){
     tries++;
     let [x,y] = within();
-    if (avoid && inRect(x,y,avoid)) continue;
 
+    // verbotene Zonen meiden
+    if (avoids.some(r=>inRect(x,y,r))) continue;
+
+    // Mindestabstand zu existierenden Punkten
     let ok = true;
     for (const [px,py] of pts){
       if (Phaser.Math.Distance.Between(x,y,px,py) < minDist){ ok=false; break; }
@@ -279,13 +305,14 @@ distributePoints({ count, minDist, bounds, avoid }){
     if (ok) pts.push([x,y]);
   }
 
-  // Fallback: wenn es knapp wurde, fülle restlich zufällig (ohne Mindestabstand)
+  // Fallback: falls dicht gepackt – fülle den Rest zufällig (ohne Mindestabstand, aber außerhalb Avoids)
   while (pts.length < count){
     let [x,y] = within();
-    if (!avoid || !inRect(x,y,avoid)) pts.push([x,y]);
+    if (!avoids.some(r=>inRect(x,y,r))) pts.push([x,y]);
   }
   return pts;
 }
+
 
   makeBubble(W,H){
     const c = this.add.circle(Phaser.Math.Between(0,W), Phaser.Math.Between(0,H), Phaser.Math.Between(3,6), 0xffffff)
