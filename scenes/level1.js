@@ -13,7 +13,7 @@ export default class Level1 extends Phaser.Scene {
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
 
     // Taucher (5 Frames à 384x384 → 1920x384) + Cache-Buster
-    this.load.spritesheet("diver", "assets/sprites/diver.png?v=3", {
+    this.load.spritesheet("diver", "assets/sprites/diver.png?v=4", {
       frameWidth: 384, frameHeight: 384, endFrame: 4
     });
 
@@ -29,18 +29,18 @@ export default class Level1 extends Phaser.Scene {
   create(){
     const W=1920,H=1080;
 
-    // Kamera: runder Pixel-Snap für ruhige Darstellung
+    // Kamera
     this.cameras.main.setBackgroundColor("#06121f");
     this.cameras.main.setBounds(0,0,W,H);
     this.cameras.main.setRoundPixels(true);
 
-    // sichtbarer Check: echte PNG-Größe & Frames der Taucherin
-    if (DEBUG) {
-      const t = this.textures.exists("diver") ? this.textures.get("diver") : null;
-      const w = t?.getSourceImage()?.width||0, h = t?.getSourceImage()?.height||0;
-      const frames = t?.frameTotal ?? 0;
-      this.add.text(16, 16, `diver.png: ${w}x${h}, frames: ${frames} (soll 1920x384, 5)`, {
-        fontFamily:"monospace", fontSize:"16px", color:"#ffeb3b", backgroundColor:"#0008", padding:{x:8,y:6}
+    // Sichtbarer Check: echte PNG-Größe & Frames
+    if (DEBUG && this.textures.exists("diver")) {
+      const t = this.textures.get("diver");
+      const w = t.getSourceImage().width, h = t.getSourceImage().height;
+      const frames = t.frameTotal;
+      this.add.text(16,16,`diver.png: ${w}x${h}, frames=${frames} (soll 1920x384, 5)`,{
+        fontFamily:"monospace",fontSize:"16px",color:"#ffeb3b",backgroundColor:"#0008",padding:{x:8,y:6}
       }).setScrollFactor(0).setDepth(1000);
     }
 
@@ -57,11 +57,10 @@ export default class Level1 extends Phaser.Scene {
       ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.55)
       : this.physics.add.image(W*0.25,H*0.55, this.makeFallbackTex());
 
-    // Physik: sanftes Gleiten statt hartes SetVelocity
+    // Physik: Drag (kein Damping) → keine Selbstbewegung
     this.player.setCollideWorldBounds(true);
-    this.player.body.setDamping(true);
-    this.player.body.setDrag(0.002);
-    this.player.body.setMaxVelocity(380, 380);
+    this.player.body.setDrag(600, 600);
+    this.player.body.setMaxVelocity(320, 320);
     this.updateBodySize();
 
     // Animationen
@@ -71,18 +70,18 @@ export default class Level1 extends Phaser.Scene {
       this.player.play("diver_idle");
     }
 
-    // Kamera-Follow sanfter
+    // Kamera-Follow
     this.cursors = this.input.keyboard.addKeys({ left:"LEFT", right:"RIGHT", up:"UP", down:"DOWN", a:"A", d:"D", w:"W", s:"S", esc:"ESC" });
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
-    // Bubbles (Deko) – leicht reduziert für Performance
+    // Bubbles (Deko, leicht reduziert)
     this.bubbles = this.add.container(0,0).setScrollFactor(0.6);
     for (let i=0;i<20;i++) this.bubbles.add(this.makeBubble(W,H));
 
     // --- SPIELZUSTAND ---
     this.totalCoins = 8;
     this.collected  = 0;
-    this.oxygenMax  = 12; // Sekunden
+    this.oxygenMax  = 10; // Sekunden
     this.oxygen     = this.oxygenMax;
     this.gameOver   = false;
 
@@ -118,23 +117,27 @@ export default class Level1 extends Phaser.Scene {
     this.bubbles.iterate(c => c.update && c.update());
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
 
-    // Bewegung: sanfte Beschleunigung + Strömung
-    const thrust = 900;
-    const dvx = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
-              + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
-    const dvy = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
-              + (this.cursors.down.isDown||this.cursors.s.isDown ? 1 : 0);
-    this.player.body.setAcceleration(dvx * thrust, dvy * thrust);
-    if (!dvx && !dvy) this.player.body.setAcceleration(0,0);
+    // Bewegung: direkte Velocity + Drag bremst aus, kein Drift
+    const speed = 300;
+    const ix = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
+             + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
+    const iy = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
+             + (this.cursors.down.isDown||this.cursors.s.isDown ? 1 : 0);
 
-    const current = Math.sin(t/1500)*40;
-    this.player.body.velocity.x += current;
+    if (ix || iy) {
+      const len = Math.hypot(ix, iy) || 1;
+      this.player.body.setVelocity((ix/len)*speed, (iy/len)*speed);
+    } else {
+      // Drag lässt sie zur Ruhe kommen; snap auf 0, damit Idle sofort sauber ist
+      if (Math.abs(this.player.body.velocity.x) < 6) this.player.body.setVelocityX(0);
+      if (Math.abs(this.player.body.velocity.y) < 6) this.player.body.setVelocityY(0);
+    }
 
-    // Animation
+    // Animationen umschalten ohne Neustarts
     if (this.textures.exists("diver")) {
-      if (dvx!==0 || dvy!==0) {
+      if (ix!==0 || iy!==0) {
         if (this.player.anims.currentAnim?.key!=="diver_swim") this.player.play("diver_swim");
-        this.player.setFlipX(dvx < 0);
+        this.player.setFlipX(ix < 0);
       } else {
         if (this.player.anims.currentAnim?.key!=="diver_idle") this.player.play("diver_idle");
       }
@@ -154,9 +157,7 @@ export default class Level1 extends Phaser.Scene {
     ];
 
     const positions = this.distributePoints({
-      count: this.totalCoins,
-      minDist: 220,
-      bounds, avoids
+      count: this.totalCoins, minDist: 220, bounds, avoids
     });
 
     positions.forEach(([x,y])=>{
@@ -178,7 +179,7 @@ export default class Level1 extends Phaser.Scene {
     if (this.collected>=this.totalCoins) this.win();
   }
 
-  // ---- Gegner: Drückerfisch ----
+  // ---- Gegner: Drückerfisch (klein) ----
   spawnTriggerfish(){
     const W=1920, H=1080;
     this.fishGroup = this.physics.add.group({ allowGravity:false });
@@ -192,16 +193,14 @@ export default class Level1 extends Phaser.Scene {
 
     const fishCount = 6;
     const fishPos = this.distributePoints({
-      count: fishCount,
-      minDist: 320,
-      bounds, avoids
+      count: fishCount, minDist: 320, bounds, avoids
     });
 
     fishPos.forEach(([x,y],i)=>{
       const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
       // feste Zielbreite → garantiert klein
-      const targetW = 250;                       // bei Bedarf 90/100/140 etc.
+      const targetW = 80;                        // << hier Größe steuern (60..120)
       const baseW   = f.width;
       const scale   = targetW / baseW;
       f.setScale(scale);
@@ -223,13 +222,8 @@ export default class Level1 extends Phaser.Scene {
 
       this.tweens.add({
         targets: f,
-        x: target.x,
-        y: target.y,
-        angle: ang,
-        duration: dur,
-        yoyo: true,
-        repeat: -1,
-        ease: "sine.inOut",
+        x: target.x, y: target.y, angle: ang,
+        duration: dur, yoyo: true, repeat: -1, ease: "sine.inOut",
         onUpdate: () => { f.setFlipX(f.body.velocity.x < 0); }
       });
     });
@@ -239,8 +233,7 @@ export default class Level1 extends Phaser.Scene {
 
   hitTriggerfish(){
     if (this.gameOver) return;
-    // Sauerstoff-Penalty & kurzer Rückstoß
-    this.oxygen = Math.max(0, this.oxygen-1);
+    this.oxygen = Math.max(0, this.oxygen-8);
     this.updateOxygenBar();
     const knock = new Phaser.Math.Vector2(this.player.body.velocity).normalize().scale(-260);
     this.player.body.velocity.add(knock);
@@ -296,10 +289,8 @@ export default class Level1 extends Phaser.Scene {
   }
 
   // ---- Helpers ----
-  // Punkte gleichmäßig verteilen, mit Mindestabstand & Avoid-Zonen
   distributePoints({ count, minDist, bounds, avoids = [] }){
-    const pts = [];
-    const maxTries = 4000;
+    const pts = [], maxTries = 4000;
     const within = ()=>[
       Phaser.Math.Between(bounds.x, bounds.x + bounds.w),
       Phaser.Math.Between(bounds.y, bounds.y + bounds.h)
@@ -356,4 +347,3 @@ export default class Level1 extends Phaser.Scene {
                 "Display:",Math.round(this.player.displayWidth),"x",Math.round(this.player.displayHeight));
   }
 }
-
