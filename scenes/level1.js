@@ -12,14 +12,14 @@ export default class Level1 extends Phaser.Scene {
     this.load.image("l1_fore",  "assets/backgrounds/level1_fore.png");
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
 
-    // Taucher (5 Frames à 384x384 → 1920x384)
-    this.load.spritesheet("diver", "assets/sprites/diver.png", {
+    // Taucher (5 Frames à 384x384 → 1920x384) + Cache-Buster
+    this.load.spritesheet("diver", "assets/sprites/diver.png?v=3", {
       frameWidth: 384, frameHeight: 384, endFrame: 4
     });
 
-    // Münze + Drückerfisch
+    // Münze + Drückerfisch (Cache-Buster optional)
     this.load.image("coin", "assets/objects/coin.png");
-    this.load.image("triggerfish", "assets/objects/triggerfish.png");
+    this.load.image("triggerfish", "assets/objects/triggerfish.png?v=2");
 
     if (DEBUG){
       this.load.on("loaderror", (f)=>console.warn("[LOAD ERROR]", f?.key, f?.src));
@@ -28,23 +28,40 @@ export default class Level1 extends Phaser.Scene {
 
   create(){
     const W=1920,H=1080;
+
+    // Kamera: runder Pixel-Snap für ruhige Darstellung
     this.cameras.main.setBackgroundColor("#06121f");
     this.cameras.main.setBounds(0,0,W,H);
+    this.cameras.main.setRoundPixels(true);
+
+    // sichtbarer Check: echte PNG-Größe & Frames der Taucherin
+    if (DEBUG) {
+      const t = this.textures.exists("diver") ? this.textures.get("diver") : null;
+      const w = t?.getSourceImage()?.width||0, h = t?.getSourceImage()?.height||0;
+      const frames = t?.frameTotal ?? 0;
+      this.add.text(16, 16, `diver.png: ${w}x${h}, frames: ${frames} (soll 1920x384, 5)`, {
+        fontFamily:"monospace", fontSize:"16px", color:"#ffeb3b", backgroundColor:"#0008", padding:{x:8,y:6}
+      }).setScrollFactor(0).setDepth(1000);
+    }
 
     // Parallax
     this.back = this.safeCoverImage(0,0,"l1_back",0.25,W,H);
     this.mid  = this.safeCoverImage(0,0,"l1_mid", 0.55,W,H);
     this.fore = this.safeCoverImage(0,0,"l1_fore",0.90,W,H);
     this.ca   = this.textures.exists("caustics")
-      ? this.add.tileSprite(0,0,W,H,"caustics").setOrigin(0,0).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.25).setScrollFactor(0.7)
+      ? this.add.tileSprite(0,0,W,H,"caustics").setOrigin(0,0).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.18).setScrollFactor(0.7)
       : null;
 
     // Spieler
     this.player = this.textures.exists("diver")
       ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.55)
       : this.physics.add.image(W*0.25,H*0.55, this.makeFallbackTex());
+
+    // Physik: sanftes Gleiten statt hartes SetVelocity
     this.player.setCollideWorldBounds(true);
-    this.player.body.setMaxSpeed(480);
+    this.player.body.setDamping(true);
+    this.player.body.setDrag(0.002);
+    this.player.body.setMaxVelocity(380, 380);
     this.updateBodySize();
 
     // Animationen
@@ -54,18 +71,18 @@ export default class Level1 extends Phaser.Scene {
       this.player.play("diver_idle");
     }
 
-    // Kamera & Steuerung
+    // Kamera-Follow sanfter
     this.cursors = this.input.keyboard.addKeys({ left:"LEFT", right:"RIGHT", up:"UP", down:"DOWN", a:"A", d:"D", w:"W", s:"S", esc:"ESC" });
-    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
-    // Bubbles (Deko)
+    // Bubbles (Deko) – leicht reduziert für Performance
     this.bubbles = this.add.container(0,0).setScrollFactor(0.6);
-    for (let i=0;i<32;i++) this.bubbles.add(this.makeBubble(W,H));
+    for (let i=0;i<20;i++) this.bubbles.add(this.makeBubble(W,H));
 
     // --- SPIELZUSTAND ---
     this.totalCoins = 8;
     this.collected  = 0;
-    this.oxygenMax  = 5; // Sekunden
+    this.oxygenMax  = 10; // Sekunden
     this.oxygen     = this.oxygenMax;
     this.gameOver   = false;
 
@@ -77,15 +94,13 @@ export default class Level1 extends Phaser.Scene {
     this.oxyBar = this.makeOxygenBar();
     this.time.addEvent({ delay: 1000, loop: true, callback: ()=> {
       if (this.gameOver) return;
-      this.oxygen = Math.max(0, this.oxygen-2);
+      this.oxygen = Math.max(0, this.oxygen-1);
       this.updateOxygenBar();
       if (this.oxygen<=0) this.fail("Keine Luft mehr!");
     }});
 
-    // Münzen platzieren (jetzt kleiner)
+    // Münzen & Fische
     this.spawnCoins();
-
-    // Gefährliche Begegnungen: Drückerfische
     this.spawnTriggerfish();
 
     // ESC → Menü
@@ -96,26 +111,30 @@ export default class Level1 extends Phaser.Scene {
     this.input.keyboard.on("keydown-D", ()=> this.drawDebug());
   }
 
-  update(_t, dt){
+  update(t, dt){
     if (this.gameOver) return;
+
+    // Bubbles & Caustics
     this.bubbles.iterate(c => c.update && c.update());
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
 
-    const s=380;
-    const vx = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
-             + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
-    const vy = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
-             + (this.cursors.down.isDown||this.cursors.s.isDown ? 1 : 0);
-    this.player.body.setVelocity(vx*s, vy*s);
+    // Bewegung: sanfte Beschleunigung + Strömung
+    const thrust = 900;
+    const dvx = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
+              + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
+    const dvy = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
+              + (this.cursors.down.isDown||this.cursors.s.isDown ? 1 : 0);
+    this.player.body.setAcceleration(dvx * thrust, dvy * thrust);
+    if (!dvx && !dvy) this.player.body.setAcceleration(0,0);
 
-    // leichte Strömung
-    const current = Math.sin(_t/1500)*40;
+    const current = Math.sin(t/1500)*40;
     this.player.body.velocity.x += current;
 
+    // Animation
     if (this.textures.exists("diver")) {
-      if (vx!==0 || vy!==0) {
+      if (dvx!==0 || dvy!==0) {
         if (this.player.anims.currentAnim?.key!=="diver_swim") this.player.play("diver_swim");
-        this.player.setFlipX(vx<0);
+        this.player.setFlipX(dvx < 0);
       } else {
         if (this.player.anims.currentAnim?.key!=="diver_idle") this.player.play("diver_idle");
       }
@@ -123,34 +142,31 @@ export default class Level1 extends Phaser.Scene {
   }
 
   // ---- Coins ----
-spawnCoins(){
-  const W=1920, H=1080;
-  this.coins = this.physics.add.group({ allowGravity:false, immovable:true });
+  spawnCoins(){
+    const W=1920, H=1080;
+    this.coins = this.physics.add.group({ allowGravity:false, immovable:true });
 
-  const margin = 40;
-  const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
+    const margin = 40;
+    const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
+    const avoids = [
+      { x: W*0.12, y: H*0.45, w: 420, h: 300 }, // Spieler-Start
+      { x: 0,      y: 0,      w: 360, h: 120 }  // HUD oben links
+    ];
 
-  const avoids = [
-    { x: W*0.12, y: H*0.45, w: 420, h: 300 }, // Spieler-Start
-    { x: 0,      y: 0,      w: 360, h: 120 }  // HUD oben links
-  ];
+    const positions = this.distributePoints({
+      count: this.totalCoins,
+      minDist: 220,
+      bounds, avoids
+    });
 
-  const positions = this.distributePoints({
-    count: this.totalCoins,
-    minDist: 220,                 // größerer Abstand → breitere Verteilung
-    bounds,
-    avoids
-  });
+    positions.forEach(([x,y])=>{
+      const c = this.coins.create(x,y,"coin").setScale(0.5);
+      c.setAlpha(0.95);
+      this.tweens.add({ targets:c, y:y-12, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
+    });
 
-  positions.forEach(([x,y])=>{
-    const c = this.coins.create(x,y,"coin").setScale(0.5);
-    c.setAlpha(0.95);
-    this.tweens.add({ targets:c, y:y-12, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
-  });
-
-  this.physics.add.overlap(this.player, this.coins, (_p, coin)=> this.collectCoin(coin));
-}
-
+    this.physics.add.overlap(this.player, this.coins, (_p, coin)=> this.collectCoin(coin));
+  }
 
   collectCoin(coin){
     if (!coin.active) return;
@@ -163,67 +179,63 @@ spawnCoins(){
   }
 
   // ---- Gegner: Drückerfisch ----
-spawnTriggerfish(){
-  const W=1920, H=1080;
-  this.fishGroup = this.physics.add.group({ allowGravity:false });
+  spawnTriggerfish(){
+    const W=1920, H=1080;
+    this.fishGroup = this.physics.add.group({ allowGravity:false });
 
-  const margin = 60;
-  const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
-  const avoids = [
-    { x: W*0.10, y: H*0.40, w: 520, h: 360 }, // Startbereich
-    { x: 0,      y: 0,      w: 360, h: 140 }  // HUD
-  ];
+    const margin = 60;
+    const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
+    const avoids = [
+      { x: W*0.10, y: H*0.40, w: 520, h: 360 }, // Startbereich
+      { x: 0,      y: 0,      w: 360, h: 140 }  // HUD
+    ];
 
-  const fishCount = 6;
-  const fishPos = this.distributePoints({
-    count: fishCount,
-    minDist: 320,
-    bounds,
-    avoids
-  });
-
-  fishPos.forEach(([x,y],i)=>{
-    const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
-
-    // --- Feste Zielgröße: Breite 120 px, Höhe proportional ---
-    const targetW = 120;                              // << HIER anpassen (z. B. 100/90/140)
-    const baseW   = f.width;                          // ursprüngliche Texturbreite bei scale=1
-    const scale   = targetW / baseW;
-    f.setScale(scale);
-
-    // ovale Hitbox passend zur Anzeigegröße
-    const bw = f.displayWidth*0.75, bh = f.displayHeight*0.55;
-    f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
-
-    // Patrouille (zufällig horizontal/vertikal/diagonal)
-    const mode = Phaser.Math.Between(0,2);
-    const rx   = Phaser.Math.Between(140, 260);
-    const ry   = Phaser.Math.Between(120, 220);
-    const dur  = Phaser.Math.Between(2200, 3200);
-    const ang  = (mode===0 ? 6 : mode===1 ? 0 : 4) * (i%2?-1:1);
-
-    const target = {
-      x: x + (mode!==1 ? (i%2?-rx:rx) : 0),
-      y: y + (mode!==0 ? (i%2?-ry:ry) : 0)
-    };
-
-    this.tweens.add({
-      targets: f,
-      x: target.x,
-      y: target.y,
-      angle: ang,
-      duration: dur,
-      yoyo: true,
-      repeat: -1,
-      ease: "sine.inOut",
-      onUpdate: () => { f.setFlipX(f.body.velocity.x < 0); }
+    const fishCount = 6;
+    const fishPos = this.distributePoints({
+      count: fishCount,
+      minDist: 320,
+      bounds, avoids
     });
-  });
 
-  this.physics.add.overlap(this.player, this.fishGroup, ()=> this.hitTriggerfish());
-}
+    fishPos.forEach(([x,y],i)=>{
+      const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
+      // feste Zielbreite → garantiert klein
+      const targetW = 120;                       // bei Bedarf 90/100/140 etc.
+      const baseW   = f.width;
+      const scale   = targetW / baseW;
+      f.setScale(scale);
 
+      // ovale Hitbox passend
+      const bw = f.displayWidth*0.75, bh = f.displayHeight*0.55;
+      f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
+
+      // Patrouille (zufällig horizontal/vertikal/diagonal)
+      const mode = Phaser.Math.Between(0,2);
+      const rx   = Phaser.Math.Between(140, 260);
+      const ry   = Phaser.Math.Between(120, 220);
+      const dur  = Phaser.Math.Between(2200, 3200);
+      const ang  = (mode===0 ? 6 : mode===1 ? 0 : 4) * (i%2?-1:1);
+      const target = {
+        x: x + (mode!==1 ? (i%2?-rx:rx) : 0),
+        y: y + (mode!==0 ? (i%2?-ry:ry) : 0)
+      };
+
+      this.tweens.add({
+        targets: f,
+        x: target.x,
+        y: target.y,
+        angle: ang,
+        duration: dur,
+        yoyo: true,
+        repeat: -1,
+        ease: "sine.inOut",
+        onUpdate: () => { f.setFlipX(f.body.velocity.x < 0); }
+      });
+    });
+
+    this.physics.add.overlap(this.player, this.fishGroup, ()=> this.hitTriggerfish());
+  }
 
   hitTriggerfish(){
     if (this.gameOver) return;
@@ -284,42 +296,33 @@ spawnTriggerfish(){
   }
 
   // ---- Helpers ----
-  // verteilt 'count' Punkte gleichmäßig in bounds, mit Mindestabstand + Avoid-Rect
-// verteilt 'count' Punkte flächig in bounds, mit Mindestabstand und mehreren Avoid-Rechtecken
-distributePoints({ count, minDist, bounds, avoids = [] }){
-  const pts = [];
-  const maxTries = 4000;
+  // Punkte gleichmäßig verteilen, mit Mindestabstand & Avoid-Zonen
+  distributePoints({ count, minDist, bounds, avoids = [] }){
+    const pts = [];
+    const maxTries = 4000;
+    const within = ()=>[
+      Phaser.Math.Between(bounds.x, bounds.x + bounds.w),
+      Phaser.Math.Between(bounds.y, bounds.y + bounds.h)
+    ];
+    const inRect = (x,y,r)=> x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h;
 
-  const within = ()=>[
-    Phaser.Math.Between(bounds.x, bounds.x + bounds.w),
-    Phaser.Math.Between(bounds.y, bounds.y + bounds.h)
-  ];
-  const inRect = (x,y,r)=> x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h;
-
-  let tries = 0;
-  while (pts.length < count && tries < maxTries){
-    tries++;
-    let [x,y] = within();
-
-    // verbotene Zonen meiden
-    if (avoids.some(r=>inRect(x,y,r))) continue;
-
-    // Mindestabstand zu existierenden Punkten
-    let ok = true;
-    for (const [px,py] of pts){
-      if (Phaser.Math.Distance.Between(x,y,px,py) < minDist){ ok=false; break; }
+    let tries = 0;
+    while (pts.length < count && tries < maxTries){
+      tries++;
+      let [x,y] = within();
+      if (avoids.some(r=>inRect(x,y,r))) continue;
+      let ok = true;
+      for (const [px,py] of pts){
+        if (Phaser.Math.Distance.Between(x,y,px,py) < minDist){ ok=false; break; }
+      }
+      if (ok) pts.push([x,y]);
     }
-    if (ok) pts.push([x,y]);
+    while (pts.length < count){
+      let [x,y] = within();
+      if (!avoids.some(r=>inRect(x,y,r))) pts.push([x,y]);
+    }
+    return pts;
   }
-
-  // Fallback: falls dicht gepackt – fülle den Rest zufällig (ohne Mindestabstand, aber außerhalb Avoids)
-  while (pts.length < count){
-    let [x,y] = within();
-    if (!avoids.some(r=>inRect(x,y,r))) pts.push([x,y]);
-  }
-  return pts;
-}
-
 
   makeBubble(W,H){
     const c = this.add.circle(Phaser.Math.Between(0,W), Phaser.Math.Between(0,H), Phaser.Math.Between(3,6), 0xffffff)
