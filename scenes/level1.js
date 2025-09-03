@@ -13,13 +13,13 @@ export default class Level1 extends Phaser.Scene {
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
 
     // Taucherin (6x1), Cache-Buster hochdrehen
-    this.load.spritesheet("diver", "assets/sprites/diver.png?v=9", {
-  frameWidth: 256,     // 1536 / 6
-  frameHeight: 1024,   // 1 Reihe
-  margin: 0,           // wenn links ein Rand ist, hier erhöhen (z. B. 16/24/32)
-  spacing: 0,         // <<< Abstand zwischen den Frames. Bei Bedarf feinjustieren
-  endFrame: 5          // nur 0..5 = 6 Frames
+  this.load.spritesheet("diver", "assets/sprites/diver_spritesheet_clean_53_final.png", {
+  frameWidth: 450,
+  frameHeight: 449,
+  margin: 0,
+  spacing: 0
 });
+
 
 
     // Münze + Drückerfisch
@@ -69,7 +69,7 @@ export default class Level1 extends Phaser.Scene {
     if (this.textures.exists("diver")) {
       this.anims.create({
         key:"diver_swim",
-        frames:this.anims.generateFrameNumbers("diver",{start:0,end:5}), // 6 Frames
+        frames:this.anims.generateFrameNumbers("diver",{start:0,end:15}), // 6 Frames
         frameRate:14,
         repeat:-1
       });
