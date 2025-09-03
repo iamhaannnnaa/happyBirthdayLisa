@@ -249,14 +249,37 @@ export default class Level1 extends Phaser.Scene {
   }
 
   // ---- Oxygen UI ----
-  makeOxygenBar(){
-    const W=this.scale.width;
-    const bg=this.add.rectangle(W-260, 40, 220, 20, 0xffffff, 0.12).setScrollFactor(0).setDepth(20);
-    const fg=this.add.rectangle(W-260, 40, 220, 20, 0x67b7ff, 0.95).setOrigin(0,0.5).setScrollFactor(0).setDepth(21);
-    const outline=this.add.rectangle(W-260, 40, 220, 20).setStrokeStyle(2,0xaad4ff,1).setScrollFactor(0).setDepth(22).setFillStyle(0,0);
-    this.add.text(W-260, 64, "Sauerstoff", { fontFamily:"system-ui", fontSize:"14px", color:"#a0c8ff"}).setScrollFactor(0).setDepth(22);
-    return {bg,fg,outline};
-  }
+makeOxygenBar(){
+  const W = this.scale.width;
+
+  // Layout: rechts 40px Abstand
+  const BAR_W = 220;
+  const BAR_H = 20;
+  const RIGHT_PAD = 40;
+
+  // Linke Kante der Leiste
+  const leftX = W - RIGHT_PAD - BAR_W;
+  const y     = 40;
+
+  // Hintergrund + Rahmen LINKS-bündig
+  const bg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0xffffff, 0.12)
+    .setOrigin(0, 0.5).setScrollFactor(0).setDepth(20);
+
+  const fg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0x67b7ff, 0.95)
+    .setOrigin(0, 0.5).setScrollFactor(0).setDepth(21); // wichtig: Origin (0,0.5) → füllt von links
+
+  const outline = this.add.rectangle(leftX, y, BAR_W, BAR_H)
+    .setOrigin(0, 0.5).setStrokeStyle(2, 0xaad4ff, 1)
+    .setScrollFactor(0).setDepth(22).setFillStyle(0,0);
+
+  // Label mittig unter der Leiste
+  this.add.text(leftX + BAR_W/2, y + 24, "Sauerstoff", {
+    fontFamily:"system-ui", fontSize:"14px", color:"#a0c8ff"
+  }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(22);
+
+  return { bg, fg, outline, leftX, width: BAR_W };
+}
+
   updateOxygenBar(){
     const p = Phaser.Math.Clamp(this.oxygen/this.oxygenMax,0,1);
     this.oxyBar.fg.scaleX = p;
