@@ -17,8 +17,9 @@ export default class Level1 extends Phaser.Scene {
       frameWidth: 384, frameHeight: 384, endFrame: 4
     });
 
-    // Münze
+    // Münze + Drückerfisch
     this.load.image("coin", "assets/objects/coin.png");
+    this.load.image("triggerfish", "assets/objects/triggerfish.png");
 
     if (DEBUG){
       this.load.on("loaderror", (f)=>console.warn("[LOAD ERROR]", f?.key, f?.src));
@@ -46,7 +47,7 @@ export default class Level1 extends Phaser.Scene {
     this.player.body.setMaxSpeed(480);
     this.updateBodySize();
 
-    // Animationen (nur wenn vorhanden)
+    // Animationen
     if (this.textures.exists("diver")) {
       this.anims.create({ key:"diver_swim", frames:this.anims.generateFrameNumbers("diver",{start:0,end:4}), frameRate:12, repeat:-1 });
       this.anims.create({ key:"diver_idle", frames:this.anims.generateFrameNumbers("diver",{start:0,end:1}), frameRate:2, repeat:-1 });
@@ -62,9 +63,9 @@ export default class Level1 extends Phaser.Scene {
     for (let i=0;i<32;i++) this.bubbles.add(this.makeBubble(W,H));
 
     // --- SPIELZUSTAND ---
-    this.totalCoins = 8;                 // Schwierigkeit hier hoch/runter
+    this.totalCoins = 8;
     this.collected  = 0;
-    this.oxygenMax  = 90;                // Sekunden
+    this.oxygenMax  = 90; // Sekunden
     this.oxygen     = this.oxygenMax;
     this.gameOver   = false;
 
@@ -81,27 +82,25 @@ export default class Level1 extends Phaser.Scene {
       if (this.oxygen<=0) this.fail("Keine Luft mehr!");
     }});
 
-    // Münzen platzieren
+    // Münzen platzieren (jetzt kleiner)
     this.spawnCoins();
 
-    // Einfache Hindernisse (Quallen)
-    this.spawnJellyfish();
+    // Gefährliche Begegnungen: Drückerfische
+    this.spawnTriggerfish();
 
     // ESC → Menü
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
 
-    // Debug Toggle (Hitbox)
+    // Debug Toggle
     this._dbgGfx=null;
     this.input.keyboard.on("keydown-D", ()=> this.drawDebug());
   }
 
   update(_t, dt){
     if (this.gameOver) return;
-    // Bubbles & Caustics
     this.bubbles.iterate(c => c.update && c.update());
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
 
-    // Bewegung
     const s=380;
     const vx = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
              + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
@@ -109,7 +108,7 @@ export default class Level1 extends Phaser.Scene {
              + (this.cursors.down.isDown||this.cursors.s.isDown ? 1 : 0);
     this.player.body.setVelocity(vx*s, vy*s);
 
-    // Strömung (leichter Drift nach rechts/links)
+    // leichte Strömung
     const current = Math.sin(_t/1500)*40;
     this.player.body.velocity.x += current;
 
@@ -125,7 +124,6 @@ export default class Level1 extends Phaser.Scene {
 
   // ---- Coins ----
   spawnCoins(){
-    // fixe, aber abwechslungsreiche Positionen
     const W=1920,H=1080;
     const pos = [
       [W*0.35,H*0.35],[W*0.52,H*0.28],[W*0.68,H*0.44],[W*0.80,H*0.32],
@@ -134,9 +132,8 @@ export default class Level1 extends Phaser.Scene {
     this.coins = this.physics.add.group({ allowGravity:false, immovable:true });
     for (let i=0;i<this.totalCoins;i++){
       const [x,y]=pos[i%pos.length];
-      const c = this.coins.create(x,y,"coin").setScale(0.9);
+      const c = this.coins.create(x,y,"coin").setScale(0.5); // << kleiner
       c.setAlpha(0.95);
-      // kleines „Schweben“
       this.tweens.add({ targets:c, y:y-8, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
     }
     this.physics.add.overlap(this.player, this.coins, (_p, coin)=> this.collectCoin(coin));
@@ -146,43 +143,53 @@ export default class Level1 extends Phaser.Scene {
     coin.disableBody(true,true);
     this.collected++;
     this.uiCoins.setText(`Münzen: ${this.collected} / ${this.totalCoins}`);
-    // Partikelchen
     const s = this.add.circle(coin.x, coin.y, 3, 0xffe062).setAlpha(0.9);
     this.tweens.add({ targets:s, scale:6, alpha:0, duration:350, onComplete:()=>s.destroy() });
     if (this.collected>=this.totalCoins) this.win();
   }
 
-  // ---- Hindernisse (Quallen) ----
-  spawnJellyfish(){
+  // ---- Gegner: Drückerfisch ----
+  spawnTriggerfish(){
     const W=1920,H=1080;
-    this.jellies = this.physics.add.group({ allowGravity:false });
+    this.fishGroup = this.physics.add.group({ allowGravity:false });
+
+    // Positionen & leichte Pendelbewegung
     const spots = [
-      [W*0.45,H*0.82],[W*0.58,H*0.50],[W*0.73,H*0.76]
+      [W*0.45,H*0.82, 120],
+      [W*0.60,H*0.50, 160],
+      [W*0.78,H*0.74, 140]
     ];
-    // Texture einmal bauen
-    if (!this.textures.exists("jelly")){
-      const g=this.add.graphics();
-      g.fillStyle(0x7ad6ff,0.85).fillCircle(24,24,24)
-       .lineStyle(3,0xbdf2ff,1).strokeCircle(24,24,22);
-      g.generateTexture("jelly",48,48); g.destroy();
-    }
-    spots.forEach(([x,y],i)=>{
-      const j = this.jellies.create(x,y,"jelly");
-      j.setCircle(22).setOffset(2,2); // rundes Hitboxgefühl
-      // vertikales Schweben
-      this.tweens.add({ targets:j, y: y + (i%2?60:-60), duration:3000, yoyo:true, repeat:-1, ease:"sine.inOut" });
+
+    spots.forEach(([x,y,range],i)=>{
+      const f = this.fishGroup.create(x,y,"triggerfish").setScale(0.35).setAlpha(0.95);
+      // Kollision grob elliptisch:
+      const bw = f.displayWidth*0.75, bh = f.displayHeight*0.55;
+      f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
+
+      // horizontales Pendeln + leichtes Kippen
+      const dir = i%2===0 ? 1 : -1;
+      this.tweens.add({
+        targets: f,
+        x: x + dir*range,
+        angle: dir*6,
+        duration: 2600,
+        yoyo: true,
+        repeat: -1,
+        ease: "sine.inOut",
+        onUpdate: () => { f.setFlipX(f.body.velocity.x < 0); }
+      });
     });
-    this.physics.add.overlap(this.player, this.jellies, ()=> this.hitJelly());
+
+    this.physics.add.overlap(this.player, this.fishGroup, ()=> this.hitTriggerfish());
   }
-  hitJelly(){
+  hitTriggerfish(){
     if (this.gameOver) return;
     // Sauerstoff-Penalty & kurzer Rückstoß
-    this.oxygen = Math.max(0, this.oxygen-5);
+    this.oxygen = Math.max(0, this.oxygen-8);
     this.updateOxygenBar();
-    const knock = new Phaser.Math.Vector2(this.player.body.velocity).normalize().scale(-220);
+    const knock = new Phaser.Math.Vector2(this.player.body.velocity).normalize().scale(-260);
     this.player.body.velocity.add(knock);
-    // visuelles Feedback
-    this.cameras.main.flash(120, 255, 80, 80, false);
+    this.cameras.main.flash(120, 255, 120, 80, false);
     if (this.oxygen<=0) this.fail("Gefährliche Begegnung…");
   }
 
@@ -260,9 +267,10 @@ export default class Level1 extends Phaser.Scene {
   }
   drawDebug(){
     if (!this._dbgGfx) this._dbgGfx=this.add.graphics().setScrollFactor(1);
-    const g=this._dbgGfx; g.clear(); g.lineStyle(2,0x00ff00,1);
+    const g=this._dbgGfx; g.clear(); g.lineStyle(2, 0x00ff00, 1);
     const b=this.player.body; g.strokeRect(b.x,b.y,b.width,b.height);
     console.log("Body:",Math.round(b.width),"x",Math.round(b.height),
                 "Display:",Math.round(this.player.displayWidth),"x",Math.round(this.player.displayHeight));
   }
 }
+
