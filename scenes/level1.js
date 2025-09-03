@@ -65,7 +65,7 @@ export default class Level1 extends Phaser.Scene {
     // --- SPIELZUSTAND ---
     this.totalCoins = 8;
     this.collected  = 0;
-    this.oxygenMax  = 30; // Sekunden
+    this.oxygenMax  = 10; // Sekunden
     this.oxygen     = this.oxygenMax;
     this.gameOver   = false;
 
