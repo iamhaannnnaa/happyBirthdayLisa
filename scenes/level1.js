@@ -170,36 +170,42 @@ spawnTriggerfish(){
   const margin = 60;
   const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
   const avoids = [
-    { x: W*0.10, y: H*0.40, w: 520, h: 360 }, // Startbereich großzügiger meiden
+    { x: W*0.10, y: H*0.40, w: 520, h: 360 }, // Startbereich
     { x: 0,      y: 0,      w: 360, h: 140 }  // HUD
   ];
 
-  const fishCount = 6; // gern erhöhen/ senken
+  const fishCount = 6;
   const fishPos = this.distributePoints({
     count: fishCount,
-    minDist: 320,  // weit auseinander
+    minDist: 320,
     bounds,
     avoids
   });
 
   fishPos.forEach(([x,y],i)=>{
-    const f = this.fishGroup.create(x,y,"triggerfish")
-      .setScale(Phaser.Math.FloatBetween(0.18, 0.24)) // leichte Größenvarianz
-      .setAlpha(0.95);
+    const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
-    // ovale Hitbox
+    // --- Feste Zielgröße: Breite 120 px, Höhe proportional ---
+    const targetW = 120;                              // << HIER anpassen (z. B. 100/90/140)
+    const baseW   = f.width;                          // ursprüngliche Texturbreite bei scale=1
+    const scale   = targetW / baseW;
+    f.setScale(scale);
+
+    // ovale Hitbox passend zur Anzeigegröße
     const bw = f.displayWidth*0.75, bh = f.displayHeight*0.55;
     f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
 
-    // Zufällige Patrouillenart
-    const mode = Phaser.Math.Between(0,2); // 0: horizontal, 1: vertikal, 2: diagonal
-    const rx = Phaser.Math.Between(140, 260);
-    const ry = Phaser.Math.Between(120, 220);
-    const dur = Phaser.Math.Between(2200, 3200);
-    const ang = (mode===0 ? 6 : mode===1 ? 0 : 4) * (i%2?-1:1);
+    // Patrouille (zufällig horizontal/vertikal/diagonal)
+    const mode = Phaser.Math.Between(0,2);
+    const rx   = Phaser.Math.Between(140, 260);
+    const ry   = Phaser.Math.Between(120, 220);
+    const dur  = Phaser.Math.Between(2200, 3200);
+    const ang  = (mode===0 ? 6 : mode===1 ? 0 : 4) * (i%2?-1:1);
 
-    const target = { x: x + (mode!==1 ? (i%2?-rx:rx) : 0),
-                     y: y + (mode!==0 ? (i%2?-ry:ry) : 0) };
+    const target = {
+      x: x + (mode!==1 ? (i%2?-rx:rx) : 0),
+      y: y + (mode!==0 ? (i%2?-ry:ry) : 0)
+    };
 
     this.tweens.add({
       targets: f,
@@ -216,6 +222,7 @@ spawnTriggerfish(){
 
   this.physics.add.overlap(this.player, this.fishGroup, ()=> this.hitTriggerfish());
 }
+
 
 
   hitTriggerfish(){
