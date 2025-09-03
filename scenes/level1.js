@@ -13,11 +13,13 @@ export default class Level1 extends Phaser.Scene {
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
 
     // Taucherin (6x1), Cache-Buster hochdrehen
-    this.load.spritesheet("diver", "assets/sprites/diver.png?v=7", {
-      frameWidth: 256,      // 1536 / 6
-      frameHeight: 1024,
-      endFrame: 5           // <<< zwingt 0..5 = 6 Frames (kein 7. Geisterframe)
-    });
+    this.load.spritesheet("diver", "assets/sprites/diver.png?v=9", {
+  frameWidth: 256,     // 1536 / 6
+  frameHeight: 1024,   // 1 Reihe
+  margin: 0,           // wenn links ein Rand ist, hier erhöhen (z. B. 16/24/32)
+  spacing: 32,         // <<< Abstand zwischen den Frames. Bei Bedarf feinjustieren
+  endFrame: 5          // nur 0..5 = 6 Frames
+});
 
 
     // Münze + Drückerfisch
@@ -55,7 +57,7 @@ export default class Level1 extends Phaser.Scene {
 
     // Spielerin
     this.player = this.textures.exists("diver")
-      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.32)   // Taucherin kleiner machen
+      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.9)   // Taucherin kleiner machen
       : this.physics.add.image(W*0.25,H*0.55, this.makeFallbackTex());
 
     this.player.setCollideWorldBounds(true);
@@ -91,7 +93,7 @@ export default class Level1 extends Phaser.Scene {
     // --- SPIELZUSTAND ---
     this.totalCoins = 8;
     this.collected  = 0;
-    this.oxygenMax  = 20; // Sekunden
+    this.oxygenMax  = 25; // Sekunden
     this.oxygen     = this.oxygenMax;
     this.gameOver   = false;
 
@@ -341,7 +343,7 @@ export default class Level1 extends Phaser.Scene {
     }
   }
   updateBodySize(){
-    const bw=this.player.displayWidth*0.40, bh=this.player.displayHeight*0.52;
+    const bw=this.player.displayWidth*0.45, bh=this.player.displayHeight*0.58;
     if (this.player.body?.setSize) this.player.body.setSize(bw,bh,true);
   }
   drawDebug(){
