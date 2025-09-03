@@ -12,11 +12,13 @@ export default class Level1 extends Phaser.Scene {
     this.load.image("l1_fore",  "assets/backgrounds/level1_fore.png");
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
 
-    // Taucherin (6 Frames à 256x1024 → 1536x1024) + Cache-Buster
-    this.load.spritesheet("diver", "assets/sprites/diver.png?v=5", {
-      frameWidth: 256,
-      frameHeight: 1024
+    // Taucherin (6x1), Cache-Buster hochdrehen
+    this.load.spritesheet("diver", "assets/sprites/diver.png?v=7", {
+      frameWidth: 256,      // 1536 / 6
+      frameHeight: 1024,
+      endFrame: 5           // <<< zwingt 0..5 = 6 Frames (kein 7. Geisterframe)
     });
+
 
     // Münze + Drückerfisch
     this.load.image("coin", "assets/objects/coin.png");
@@ -53,7 +55,7 @@ export default class Level1 extends Phaser.Scene {
 
     // Spielerin
     this.player = this.textures.exists("diver")
-      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.28)   // Taucherin kleiner machen
+      ? this.physics.add.sprite(W*0.25,H*0.55,"diver",0).setScale(0.32)   // Taucherin kleiner machen
       : this.physics.add.image(W*0.25,H*0.55, this.makeFallbackTex());
 
     this.player.setCollideWorldBounds(true);
@@ -66,7 +68,7 @@ export default class Level1 extends Phaser.Scene {
       this.anims.create({
         key:"diver_swim",
         frames:this.anims.generateFrameNumbers("diver",{start:0,end:5}), // 6 Frames
-        frameRate:12,
+        frameRate:14,
         repeat:-1
       });
       this.anims.create({
@@ -89,7 +91,7 @@ export default class Level1 extends Phaser.Scene {
     // --- SPIELZUSTAND ---
     this.totalCoins = 8;
     this.collected  = 0;
-    this.oxygenMax  = 10; // Sekunden
+    this.oxygenMax  = 20; // Sekunden
     this.oxygen     = this.oxygenMax;
     this.gameOver   = false;
 
@@ -205,7 +207,7 @@ export default class Level1 extends Phaser.Scene {
     fishPos.forEach(([x,y],i)=>{
       const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
-      const targetW = 80;   // Breite in px → kleine Fische
+      const targetW = 200;   // Breite in px → kleine Fische
       const baseW   = f.width;
       const scale   = targetW / baseW;
       f.setScale(scale);
@@ -339,7 +341,7 @@ export default class Level1 extends Phaser.Scene {
     }
   }
   updateBodySize(){
-    const bw=this.player.displayWidth*0.45, bh=this.player.displayHeight*0.55;
+    const bw=this.player.displayWidth*0.40, bh=this.player.displayHeight*0.52;
     if (this.player.body?.setSize) this.player.body.setSize(bw,bh,true);
   }
   drawDebug(){
