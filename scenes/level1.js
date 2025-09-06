@@ -136,12 +136,14 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
 
     // Animationen
     if (this.textures.exists("diver")) {
-      if (ix!==0 || iy!==0) {
-        if (this.player.anims.currentAnim?.key!=="diver_swim") this.player.play("diver_swim");
-        this.player.setFlipX(ix > 0);   // <<< invertiert
-      } else {
-        if (this.player.anims.currentAnim?.key!=="diver_idle") this.player.play("diver_idle");
-      }
+      // Animation
+        if (ix!==0 || iy!==0) {
+          if (this.player.anims.currentAnim?.key!=="diver_swim") this.player.play("diver_swim");
+          if (ix < 0)      this.player.setFlipX(false); // links
+          else if (ix > 0) this.player.setFlipX(true);  // rechts
+        } else {
+          if (this.player.anims.currentAnim?.key!=="diver_idle") this.player.play("diver_idle");
+        }
     }
   }
 

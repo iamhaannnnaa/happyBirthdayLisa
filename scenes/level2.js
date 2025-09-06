@@ -209,7 +209,7 @@ export default class Level2 extends Phaser.Scene {
     } else {
       if (this.textures.exists("diver")) this.player.play("diver_swim", true);
     }
-    if (ix!==0) this.player.setFlipX(ix<0);
+    if (ix!==0) this.player.pX(ix<0);
   }
 
   // --- Hilfen & UI ---
