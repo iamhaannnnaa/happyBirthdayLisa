@@ -6,57 +6,55 @@ export default class Level2 extends Phaser.Scene {
   constructor(){ super("Level2"); }
 
   preload(){
-    // Diver nur laden, wenn noch nicht vorhanden
+    // Diver neu: 1920x1920, 4x4 Frames à 480x480
     if (!this.textures.exists("diver")){
-      this.load.spritesheet("diver", "assets/sprites/4_cropped1920.png",
-        { frameWidth: 479, frameHeight: 480 });
+      this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png",
+        { frameWidth: 480, frameHeight: 480, endFrame: 15 });
     }
   }
 
   create(){
-    // --- ASCII-Labyrinth ---
+    // ---- Fein einstellbare Parameter ----
+    const TILE        = 96;     // Kachelgröße (größer = alles optisch größer)
+    const CAM_ZOOM    = 1.6;    // Kamera-Zoom (größer = näher dran)
+    const PLAYER_SCALE= 0.26;   // Größe der Taucherin (zusätzlich zum Zoom)
+
+    this.TILE = TILE;
+
+    // --- kleines ASCII-Labyrinth (kompakter, weniger Wege) ---
     // # = Wand, . = Boden, D = Tür (Mama), E = Tür (Papa),
     // M = Mama, F = Papa, S = Start, X = Ausgang
     const MAP = [
-      "########################################",
-      "#S....#..............####..............#",
-      "###.#.#.###########.#..#..######.#######",
-      "#...#...#.........#.#..#..#....#.......#",
-      "#.#####.#.#######.#.####..#.##.#######.#",
-      "#.....#.#.#.....#.#......##.#..#.....#.#",
-      "#####.#.#.#.###.#.#########.#.##.###.#.#",
-      "#...#.#.#.#...#.#.#.......#.#..#...#.#.#",
-      "#.#.#.#.#.###.#.#.#.#####.#.####.#.#.#.#",
-      "#.#.#...#...#.#...#...#...#......#.#.#.#",
-      "#.#.#########.#######.#.##########.#.#.#",
-      "#.#.........#.......#.#.#..........#.#.#",
-      "#.#########.#######.#.#.#.##########.#.#",
-      "#.......#..#.....#.#.#.#.#.#........#.#X",
-      "#######.#.##.###.#.#.#.#.#.#.########.#E",
-      "#.....#.#..#.#.#.#.#.#.#.#.#.#......#.#.",
-      "#.###.#.##.#.#.#.#.#.#.#.#.#.#.####.#.#.",
-      "#.#...#....#.#.#...#.#.#.#.#.#....#.#.#.",
-      "#.#.########.#.#####.#.#.#.#.####.#.#.#.",
-      "#.#.#......#.#.....#.#.#.#.#....#.#.#.#.",
-      "#.#.#.####.#.#####.#.#.#.#.####.#.#.#.#.",
-      "#.#.#.#..#.#.....#.#.#.#.#....#.#.#.#.#.",
-      "#.#.#.#M.#.#####.#.#.#.#.####.#.#.#.#.#.",
-      "#.#...#..#.....#.#.#.#.#....#.#.#...#.#.",
-      "#.#################.#.######.#.#####.#.#",
-      "#........F..........#........#.......#D#",
-      "########################################"
+      "############################",
+      "#S.....#......####........X#",
+      "###.#..#.####.#..#.#########",
+      "#...#..#....#.#..#.#.......#",
+      "#.#####.##.#.#.##.#.#.###E.#",
+      "#.....#....#.#....#.#.#...##",
+      "#####.######.######.#.#.#..#",
+      "#...#.#....#.#....#.#.#.#..#",
+      "#.#.#.#.##.#.#.##.#.#.#.####",
+      "#.#.#...##.#...##.#.#.#....#",
+      "#.#.######.######.#.#.####.#",
+      "#.#......#......#.#.#....#.#",
+      "#.######.#.####.#.#.####.#.#",
+      "#....M.#.#.#..#.#.#....#.#.#",
+      "######.#.#.#F.#.#.####.#.#.#",
+      "#D.....#.#....#.#......#...#",
+      "############################"
     ];
-    this.TILE = 64;
-    this.mapW = MAP[0].length * this.TILE;
-    this.mapH = MAP.length     * this.TILE;
+
+    this.mapW = MAP[0].length * TILE;
+    this.mapH = MAP.length     * TILE;
 
     // Welt & Kamera
     this.cameras.main.setBackgroundColor("#041016");
     this.physics.world.setBounds(0,0,this.mapW,this.mapH);
     this.cameras.main.setBounds(0,0,this.mapW,this.mapH);
     this.cameras.main.setRoundPixels(true);
+    this.cameras.main.setZoom(CAM_ZOOM); // <<< näher ran
 
-    // Platzhalter-Texturen erzeugen
+    // einfache Texturen
     this.makeSimpleTextures();
 
     // Gruppen
@@ -66,14 +64,13 @@ export default class Level2 extends Phaser.Scene {
     this.exit  = this.physics.add.staticGroup();
 
     // Welt aus MAP bauen
-    let startX = 2*this.TILE, startY = 2*this.TILE;
+    let startX = TILE*2, startY = TILE*2;
     for (let y=0; y<MAP.length; y++){
       for (let x=0; x<MAP[0].length; x++){
         const ch = MAP[y][x];
-        const px = x*this.TILE + this.TILE/2;
-        const py = y*this.TILE + this.TILE/2;
+        const px = x*TILE + TILE/2;
+        const py = y*TILE + TILE/2;
 
-        // Boden-Kachel (damit Gänge sichtbar sind)
         this.add.image(px, py, "floor").setDepth(-5);
 
         if (ch === "#"){
@@ -85,7 +82,7 @@ export default class Level2 extends Phaser.Scene {
           n.setData("line", "Mama (Kasse): 'Erst zahlen, dann saunieren!'");
         } else if (ch === "F"){
           const n = this.npcs.create(px, py, "dad").setData("id","dad");
-          n.setData("line", "Papa (Sauna): 'Nicht vergessen – Handtuch drunter!'");
+          n.setData("line", "Papa (Sauna): 'Handtuch unterlegen!'");
         } else if (ch === "D"){
           this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
         } else if (ch === "E"){
@@ -98,7 +95,7 @@ export default class Level2 extends Phaser.Scene {
 
     // Spieler
     this.player = this.textures.exists("diver")
-      ? this.physics.add.sprite(startX,startY,"diver",0).setScale(0.20)
+      ? this.physics.add.sprite(startX,startY,"diver",0).setScale(PLAYER_SCALE)
       : this.physics.add.image(startX,startY,"player");
 
     this.player.setCollideWorldBounds(true);
@@ -119,7 +116,7 @@ export default class Level2 extends Phaser.Scene {
       this.player.play("diver_idle");
     }
 
-    // Kamera folgt
+    // Kamera folgt (mit Zoom)
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     // HUD / Schlüssel
@@ -129,15 +126,13 @@ export default class Level2 extends Phaser.Scene {
       { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff" })
       .setScrollFactor(0).setDepth(20);
 
-    // Kollisionen
+    // Kollisionen & Overlaps
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.player, this.doors, (pl, door)=>{
       if (door.getData("locked")){
         this.showToast("Verschlossene Tür. Sprich mit Mama/Papa für Schlüssel!");
       }
     });
-
-    // Overlaps
     this.physics.add.overlap(this.player, this.npcs, (pl, npc)=> this.talkTo(npc));
     this.physics.add.overlap(this.player, this.exit, ()=> this.tryFinish());
 
@@ -164,16 +159,15 @@ export default class Level2 extends Phaser.Scene {
   }
 
   talkTo(npc){
-    if (this._talking) return;
     if (!this.keys.e.isDown) return;
     const id = npc.getData("id");
     if (id === "mom" && !this.haveMomKey){
       this.haveMomKey = true;
-      this.showToast(npc.getData("line") + "  → Du erhältst den Kassen-Schlüssel!");
+      this.showToast(npc.getData("line") + "  → Kassen-Schlüssel erhalten!");
       this.openDoor("door1");
     } else if (id === "dad" && !this.haveDadKey){
       this.haveDadKey = true;
-      this.showToast(npc.getData("line") + "  → Du erhältst den Sauna-Schlüssel!");
+      this.showToast(npc.getData("line") + "  → Sauna-Schlüssel erhalten!");
       this.openDoor("door2");
     } else {
       this.showToast(npc.getData("line"));
@@ -186,7 +180,7 @@ export default class Level2 extends Phaser.Scene {
       if (d.getData("id")===id && d.getData("locked")){
         d.setTexture("door_open");
         d.setData("locked", false);
-        d.disableBody(true, true);                 // keine Kollision mehr
+        d.disableBody(true, true);                   // keine Kollision mehr
         this.add.image(d.x, d.y, "door_open").setDepth(-4); // Deko
       }
     });
@@ -194,14 +188,14 @@ export default class Level2 extends Phaser.Scene {
 
   tryFinish(){
     if (this.haveMomKey && this.haveDadKey){
-      this.scene.start("MenuScene");
       this.showToast("Geschafft! Weiter geht's …");
+      this.time.delayedCall(500, ()=> this.scene.start("MenuScene"));
     } else {
       this.showToast("Die Ausgangstür öffnet sich erst mit beiden Schlüsseln.");
     }
   }
 
-  update(time, dt){
+  update(){
     const speed = 300;
     const ix = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
                (this.keys.right.isDown || this.keys.d.isDown ? 1 : 0);
@@ -245,7 +239,7 @@ export default class Level2 extends Phaser.Scene {
   }
 
   makeOxygenBar(){
-    const W=this.scale.width, H=this.scale.height;
+    const W=this.scale.width;
     const barW = 260, barH = 18;
     const bg = this.add.rectangle(W-20, 20, barW, barH, 0x000000, 0.35).setOrigin(1,0).setScrollFactor(0);
     const fg = this.add.rectangle(W-20-barW/2, 29, barW-12, barH-12, 0x39c5ff, 0.9).setOrigin(0.5,0).setScrollFactor(0);

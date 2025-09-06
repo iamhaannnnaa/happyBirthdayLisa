@@ -165,7 +165,7 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
     });
 
     positions.forEach(([x,y])=>{
-      const c = this.coins.create(x,y,"coin").setScale(0.07);
+      const c = this.coins.create(x,y,"coin").setScale(0.09);
       c.setAlpha(0.95);
       this.tweens.add({ targets:c, y:y-12, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
     });
