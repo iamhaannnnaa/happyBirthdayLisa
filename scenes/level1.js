@@ -14,8 +14,8 @@ export default class Level1 extends Phaser.Scene {
 
     // Taucherin (6x1), Cache-Buster hochdrehen
  this.load.spritesheet("diver",  "assets/sprites/diver_v4.png", {
-  frameWidth: 480,
-  frameHeight: 431,
+  frameWidth: 512,
+  frameHeight: 512,
   endFrame: 15
 });
 
@@ -162,7 +162,7 @@ export default class Level1 extends Phaser.Scene {
     });
 
     positions.forEach(([x,y])=>{
-      const c = this.coins.create(x,y,"coin").setScale(0.4);
+      const c = this.coins.create(x,y,"coin").setScale(0.15);
       c.setAlpha(0.95);
       this.tweens.add({ targets:c, y:y-12, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
     });
