@@ -255,25 +255,25 @@ if (ix!==0 || iy!==0){
   makeOxygenBar(){
   const W = this.scale.width;
   const BAR_W = 220, BAR_H = 20, RIGHT_PAD = 40;
-  const leftX = W - RIGHT_PAD - BAR_W;
-  const y = 40;
+  const leftX = W - RIGHT_PAD - BAR_W, y = 40;
 
   const bg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0xffffff, 0.12)
-    .setOrigin(0, 0.5).setScrollFactor(0).setDepth(20);
+    .setOrigin(0,0.5).setScrollFactor(0).setDepth(1000);
 
   const fg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0x67b7ff, 0.95)
-    .setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
+    .setOrigin(0,0.5).setScrollFactor(0).setDepth(1001);
 
   const outline = this.add.rectangle(leftX, y, BAR_W, BAR_H)
-    .setOrigin(0, 0.5).setStrokeStyle(2, 0xaad4ff, 1)
-    .setScrollFactor(0).setDepth(22).setFillStyle(0,0);
+    .setOrigin(0,0.5).setStrokeStyle(2, 0xaad4ff, 1)
+    .setScrollFactor(0).setDepth(1002).setFillStyle(0,0);
 
   this.add.text(leftX + BAR_W/2, y + 24, "Sauerstoff", {
     fontFamily:"system-ui", fontSize:"14px", color:"#a0c8ff"
-  }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(22);
+  }).setOrigin(0.5,0).setScrollFactor(0).setDepth(1002);
 
   return { bg, fg, outline, leftX, width: BAR_W };
 }
+
 
 updateOxygenBar(){
   const p = Phaser.Math.Clamp(this.oxygen/this.oxygenMax, 0, 1);
@@ -288,7 +288,7 @@ updateOxygenBar(){
   }
 
   updateBodySize(){
-    const bw=this.player.displayWidth*0.45, bh=this.player.displayHeight*0.58;
+    const bw=this.player.displayWidth*0.9, bh=this.player.displayHeight*0.90;
     if (this.player.body?.setSize) this.player.body.setSize(bw,bh,true);
   }
 
