@@ -8,7 +8,7 @@ export default class Level2 extends Phaser.Scene {
   preload(){
     // Diver nur laden, wenn noch nicht vorhanden
     if (!this.textures.exists("diver")){
-      this.load.spritesheet("diver", "assets/sprites/diver_v4_cropped1920.png",
+      this.load.spritesheet("diver", "assets/sprites/4_cropped1920.png",
         { frameWidth: 479, frameHeight: 480 });
     }
   }
