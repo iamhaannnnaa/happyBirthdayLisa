@@ -14,8 +14,8 @@ export default class Level1 extends Phaser.Scene {
 
     // Taucherin (6x1), Cache-Buster hochdrehen
  this.load.spritesheet("diver",  "assets/sprites/diver_v4.png", {
-  frameWidth: 450,
-  frameHeight: 449,
+  frameWidth: 480,
+  frameHeight: 431,
   endFrame: 15
 });
 
