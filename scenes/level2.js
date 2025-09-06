@@ -98,7 +98,7 @@ export default class Level2 extends Phaser.Scene {
 
     // Spieler
     this.player = this.textures.exists("diver")
-      ? this.physics.add.sprite(startX,startY,"diver",0).setScale(0.65)
+      ? this.physics.add.sprite(startX,startY,"diver",0).setScale(0.20)
       : this.physics.add.image(startX,startY,"player");
 
     this.player.setCollideWorldBounds(true);
