@@ -13,7 +13,7 @@ export default class Level1 extends Phaser.Scene {
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
 
     // Taucherin (6x1), Cache-Buster hochdrehen
- this.load.spritesheet("diver",  "assets/sprites/diver_v4.png", {
+ this.load.spritesheet("diver",  "assets/sprites/diver_v4.PNG", {
   frameWidth: 450,
   frameHeight: 449,
   endFrame: 15
