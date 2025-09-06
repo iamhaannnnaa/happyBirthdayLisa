@@ -23,7 +23,7 @@ export default class Level1 extends Phaser.Scene {
 
 
     // Münze + Drückerfisch
-    this.load.image("coin", "assets/objects/coin.png");
+    this.load.image("coin", "assets/objects/coin2.png");
     this.load.image("triggerfish", "assets/objects/triggerfish.png?v=2");
 
     if (DEBUG){
