@@ -22,9 +22,6 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
 
 
 
-
-
-
     // Münze + Drückerfisch
     this.load.image("coin", "assets/objects/coin2.png");
     this.load.image("triggerfish", "assets/objects/triggerfish.png?v=2");
@@ -208,7 +205,7 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
       const scale   = targetW / baseW;
       f.setScale(scale);
 
-      const bw = f.displayWidth*0.75, bh = f.displayHeight*0.55;
+      const bw = f.displayWidth*0.90, bh = f.displayHeight*0.85;
       f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
 
       const mode = Phaser.Math.Between(0,2);
@@ -360,7 +357,7 @@ makeOxygenBar(){
     }
   }
   updateBodySize(){
-    const bw=this.player.displayWidth*0.45, bh=this.player.displayHeight*0.58;
+    const bw=this.player.displayWidth*0.70, bh=this.player.displayHeight*0.80;
     if (this.player.body?.setSize) this.player.body.setSize(bw,bh,true);
   }
   drawDebug(){
