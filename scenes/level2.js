@@ -26,21 +26,19 @@ export default class Level2 extends Phaser.Scene {
     // M = Mama, F = Papa, S = Start, X = Ausgang
     const MAP = [
       "############################",
-      "#S.....#......####........X#",
-      "###.#..#.####.#..#.#########",
-      "#...#..#....#.#..#.#.......#",
-      "#.#####.##.#.#.##.#.#.###E.#",
-      "#.....#....#.#....#.#.#...##",
-      "#####.######.######.#.#.#..#",
-      "#...#.#....#.#....#.#.#.#..#",
-      "#.#.#.#.##.#.#.##.#.#.#.####",
-      "#.#.#...##.#...##.#.#.#....#",
-      "#.#.######.######.#.#.####.#",
-      "#.#......#......#.#.#....#.#",
-      "#.######.#.####.#.#.####.#.#",
-      "#....M.#.#.#..#.#.#....#.#.#",
-      "######.#.#.#F.#.#.####.#.#.#",
-      "#D.....#.#....#.#......#...#",
+      "#S.....#......####.........#",
+      "###.##...####......#######.#",
+      "#...#..#.....#.###.......#.#",
+      "#.######.#.#.#.####.#.######",
+      "#....M#..#.#.#....#D###...##",
+      "############.######.....#..#",
+      "#...#F#....###.##...###.####",
+      "#.#.#...##........#...#....#",
+      "#.#.######.######.#.#.######",
+      "#.#.............#.#.#......#",
+      "#......#.#.##.#.#.#...##.#E#",
+      "######.#...##.#.#.####.#.#.#",
+      "#......#.#....#.#......###X#",
       "############################"
     ];
 
@@ -94,14 +92,19 @@ export default class Level2 extends Phaser.Scene {
     }
 
     // Spieler
+    // Spieler
     this.player = this.textures.exists("diver")
-      ? this.physics.add.sprite(startX,startY,"diver",0).setScale(PLAYER_SCALE)
-      : this.physics.add.image(startX,startY,"player");
+      ? this.physics.add.sprite(startX, startY, "diver", 0).setScale(PLAYER_SCALE ?? 0.26)
+      : this.physics.add.image(startX, startY, "player");
 
     this.player.setCollideWorldBounds(true);
     this.player.body.setDrag(600,600);
     this.player.body.setMaxVelocity(320,320);
     this.updateBodySize();
+
+    // Start-Blickrichtung setzen:
+    this.player.setFlipX(false); // false = nach links schauen, true = nach rechts
+
 
     // Animationen
     if (this.textures.exists("diver")){
@@ -142,14 +145,22 @@ export default class Level2 extends Phaser.Scene {
       a:"A", d:"D", w:"W", s:"S", e:"E", esc:"ESC"
     });
 
-    // Sauerstoff
-    this.oxygenMax = 40; this.oxygen = this.oxygenMax;
+      // --- SPIELZUSTAND / O₂ & HUD (wie Level1) ---
+    this.gameOver   = false;
+    this.oxygenMax  = 50;                  // Länge unverändert
+    this.oxygen     = this.oxygenMax;
+
+    // O₂-UI wie in Level1
     this.oxyBar = this.makeOxygenBar();
-    this.time.addEvent({ delay:1000, loop:true, callback:()=>{
-      this.oxygen = Math.max(0, this.oxygen-1);
-      this.updateOxygenBar();
-      if (this.oxygen <= 0) this.gameOver("Du bist außer Atem!");
-    }});
+    this.time.addEvent({
+      delay: 1000, loop: true, callback: ()=>{
+        if (this.gameOver) return;
+        this.oxygen = Math.max(0, this.oxygen - 1);
+        this.updateOxygenBar();
+        if (this.oxygen <= 0) this.fail("Keine Luft mehr!"); // gleich wie Level1
+      }
+    });
+
 
     // ESC
     this.add.text(16, this.scale.height-10, "⟵ Menü (ESC)",
@@ -187,30 +198,33 @@ export default class Level2 extends Phaser.Scene {
   }
 
   tryFinish(){
-    if (this.haveMomKey && this.haveDadKey){
-      this.showToast("Geschafft! Weiter geht's …");
-      this.time.delayedCall(500, ()=> this.scene.start("MenuScene"));
-    } else {
-      this.showToast("Die Ausgangstür öffnet sich erst mit beiden Schlüsseln.");
-    }
+  if (this.haveMomKey && this.haveDadKey){
+    this.win();                      // <<< wie Level1
+  } else {
+    this.showToast("Die Ausgangstür öffnet sich erst mit beiden Schlüsseln.");
   }
+}
+
 
   update(){
-    const speed = 300;
-    const ix = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
-               (this.keys.right.isDown || this.keys.d.isDown ? 1 : 0);
-    const iy = (this.keys.up.isDown   || this.keys.w.isDown ? -1 : 0) +
-               (this.keys.down.isDown || this.keys.s.isDown ? 1 : 0);
+    // Bewegung
+const speed = 300;
+const ix = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
+           (this.keys.right.isDown|| this.keys.d.isDown ?  1 : 0);
+const iy = (this.keys.up.isDown   || this.keys.w.isDown ? -1 : 0) +
+           (this.keys.down.isDown || this.keys.s.isDown ?  1 : 0);
 
-    this.player.body.setAcceleration(ix*speed*2, iy*speed*2);
-    if (ix===0 && iy===0){
-      this.player.body.setAcceleration(0,0);
-      if (this.textures.exists("diver")) this.player.play("diver_idle", true);
-    } else {
-      if (this.textures.exists("diver")) this.player.play("diver_swim", true);
-    }
-    if (ix!==0) this.player.pX(ix<0);
-  }
+this.player.body.setAcceleration(ix*speed*2, iy*speed*2);
+
+// Animation + Flip NUR bei horizontalem Input ändern
+if (ix!==0 || iy!==0){
+  if (this.textures.exists("diver")) this.player.play("diver_swim", true);
+  if (ix < 0)      this.player.setFlipX(false); // nach links
+  else if (ix > 0) this.player.setFlipX(true);  // nach rechts
+} else {
+  this.player.body.setAcceleration(0,0);
+  if (this.textures.exists("diver")) this.player.play("diver_idle", true);
+}}
 
   // --- Hilfen & UI ---
   makeSimpleTextures(){
@@ -239,17 +253,33 @@ export default class Level2 extends Phaser.Scene {
   }
 
   makeOxygenBar(){
-    const W=this.scale.width;
-    const barW = 260, barH = 18;
-    const bg = this.add.rectangle(W-20, 20, barW, barH, 0x000000, 0.35).setOrigin(1,0).setScrollFactor(0);
-    const fg = this.add.rectangle(W-20-barW/2, 29, barW-12, barH-12, 0x39c5ff, 0.9).setOrigin(0.5,0).setScrollFactor(0);
-    fg.maxW = barW-12;
-    return {bg,fg};
-  }
-  updateOxygenBar(){
-    const pct = Phaser.Math.Clamp(this.oxygen/this.oxygenMax, 0, 1);
-    this.oxyBar.fg.width = this.oxyBar.fg.maxW * pct;
-  }
+  const W = this.scale.width;
+  const BAR_W = 220, BAR_H = 20, RIGHT_PAD = 40;
+  const leftX = W - RIGHT_PAD - BAR_W;
+  const y = 40;
+
+  const bg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0xffffff, 0.12)
+    .setOrigin(0, 0.5).setScrollFactor(0).setDepth(20);
+
+  const fg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0x67b7ff, 0.95)
+    .setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
+
+  const outline = this.add.rectangle(leftX, y, BAR_W, BAR_H)
+    .setOrigin(0, 0.5).setStrokeStyle(2, 0xaad4ff, 1)
+    .setScrollFactor(0).setDepth(22).setFillStyle(0,0);
+
+  this.add.text(leftX + BAR_W/2, y + 24, "Sauerstoff", {
+    fontFamily:"system-ui", fontSize:"14px", color:"#a0c8ff"
+  }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(22);
+
+  return { bg, fg, outline, leftX, width: BAR_W };
+}
+
+updateOxygenBar(){
+  const p = Phaser.Math.Clamp(this.oxygen/this.oxygenMax, 0, 1);
+  this.oxyBar.fg.scaleX = p;
+}
+
 
   updateHud(){
     const a = this.haveMomKey ? "✓" : "–";
@@ -276,4 +306,40 @@ export default class Level2 extends Phaser.Scene {
     this.showToast(msg);
     this.time.delayedCall(1200, ()=> this.scene.start("MenuScene"));
   }
+
+  win(){
+  if (this.gameOver) return;
+  this.gameOver = true;
+  this.physics.world.pause();
+  this.player.body.setVelocity(0,0);
+  if (this.textures.exists("diver")) this.player.play("diver_idle");
+  this.showEndPanel("Level geschafft! 🎉");
+}
+
+fail(msg){
+  if (this.gameOver) return;
+  this.gameOver = true;
+  this.physics.world.pause();
+  this.player.body.setVelocity(0,0);
+  this.showEndPanel(msg || "Game Over");
+}
+
+showEndPanel(title){
+  const W=this.scale.width, H=this.scale.height;
+  const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0).setDepth(100);
+  const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0).setDepth(101);
+  this.add.text(W/2,H/2-90,title,{fontFamily:"system-ui",fontSize:"36px",color:"#e6f0ff"})
+    .setOrigin(0.5).setScrollFactor(0).setDepth(102);
+
+  const makeBtn = (txt, y, onClick)=>{
+    const r=this.add.rectangle(W/2,y,260,56,0x0d2e46,1).setScrollFactor(0).setDepth(102).setInteractive({useHandCursor:true});
+    const t=this.add.text(W/2,y,txt,{fontFamily:"system-ui",fontSize:"22px",color:"#cfe9ff"}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    r.on("pointerover", ()=>r.setFillStyle(0x134062,1));
+    r.on("pointerout",  ()=>r.setFillStyle(0x0d2e46,1));
+    r.on("pointerdown", ()=>{ onClick(); dim.destroy(); panel.destroy(); r.destroy(); t.destroy(); });
+  };
+  makeBtn("Nochmal",  H/2+10, ()=> this.scene.restart());
+  makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
+}
+
 }
