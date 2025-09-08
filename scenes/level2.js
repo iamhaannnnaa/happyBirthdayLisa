@@ -16,9 +16,9 @@ export default class Level2 extends Phaser.Scene {
 
   create(){
     // ------- Einstellungen -------
-    const TILE        = 88;     // Größe der Kacheln (optisch größer/kleiner)
-    const CAM_ZOOM    = 1.5;    // Kamera-Zoom
-    const PLAYER_SCALE= 0.24;   // Sprite-Skalierung
+    const TILE         = 88;    // Größe der Kacheln
+    const CAM_ZOOM     = 1.5;   // Kamera-Zoom
+    const PLAYER_SCALE = 0.24;  // Sprite-Skalierung
 
     this.TILE = TILE;
 
@@ -73,7 +73,19 @@ export default class Level2 extends Phaser.Scene {
         this.add.image(px, py, "floor").setDepth(-5);
 
         if (ch === "#"){
-          this.walls.create(px, py, "wall");
+          const w = this.walls.create(px, py, "wall");
+          // volle Kachel-Kollision & zentrierte Bodies
+          w.body.setSize(TILE, TILE);
+          w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
+          // Sicherheitsnetz: alle Seiten kollidierbar
+          if (w.body.checkCollision){
+            w.body.checkCollision.none  = false;
+            w.body.checkCollision.up    = true;
+            w.body.checkCollision.down  = true;
+            w.body.checkCollision.left  = true;
+            w.body.checkCollision.right = true;
+          }
+          w.refreshBody();
         } else if (ch === "S"){
           startX = px; startY = py;
         } else if (ch === "M"){
@@ -83,14 +95,32 @@ export default class Level2 extends Phaser.Scene {
           const n = this.npcs.create(px, py, "dad").setData("id","dad");
           n.setData("line", "Papa (Sauna): 'Handtuch unterlegen!'");
         } else if (ch === "D"){
-          this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
+          const d = this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
+          d.refreshBody();
         } else if (ch === "E"){
-          this.doors.create(px, py, "door2").setData("id","door2").setData("locked", true);
+          const d = this.doors.create(px, py, "door2").setData("id","door2").setData("locked", true);
+          d.refreshBody();
         } else if (ch === "X"){
-          this.exit.create(px, py, "exit");
+          const ex = this.exit.create(px, py, "exit");
+          ex.refreshBody();
         }
       }
     }
+
+    // Fallback: nach dem Erstellen nochmal alle Wände “hart” refreshen
+    this.walls.children.iterate(w=>{
+      if (!w) return;
+      w.body.setSize(TILE, TILE);
+      w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
+      if (w.body.checkCollision){
+        w.body.checkCollision.none  = false;
+        w.body.checkCollision.up    = true;
+        w.body.checkCollision.down  = true;
+        w.body.checkCollision.left  = true;
+        w.body.checkCollision.right = true;
+      }
+      w.refreshBody();
+    });
 
     // ------- Spieler -------
     this.player = this.textures.exists("diver")
@@ -123,14 +153,29 @@ export default class Level2 extends Phaser.Scene {
     this.haveMomKey = false;
     this.haveDadKey = false;
     this.hud = this.add.text(16,16,"Schlüssel: – / –\n[E] reden / benutzen",
-      { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff" })
+      { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff",
+        stroke:"#000", strokeThickness:3 })
       .setScrollFactor(0).setDepth(2000);
 
-    // ------- O₂-Anzeige (wie Level1) -------
+    // HUD direkt korrekt anzeigen
+    this.updateHud();
+
+    // ------- O₂-Anzeige -------
     this.gameOver   = false;
     this.oxygenMax  = 40;
     this.oxygen     = this.oxygenMax;
     this.oxyBar     = this.makeOxygenBar();
+
+    // O₂ sofort sichtbar/korrekt
+    this.updateOxygenBar();
+
+    // HUD/O₂ nach vorn holen (falls verdeckt)
+    this.children.bringToTop(this.hud);
+    if (this.oxyBar?.bg)      this.children.bringToTop(this.oxyBar.bg);
+    if (this.oxyBar?.fg)      this.children.bringToTop(this.oxyBar.fg);
+    if (this.oxyBar?.outline) this.children.bringToTop(this.oxyBar.outline);
+
+    // O₂-Timer
     this.time.addEvent({
       delay:1000, loop:true, callback: ()=>{
         if (this.gameOver) return;
@@ -158,9 +203,14 @@ export default class Level2 extends Phaser.Scene {
 
     // ESC → Menü
     this.add.text(16, this.scale.height-10, "⟵ Menü (ESC)",
-      { fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff" })
+      { fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff",
+        stroke:"#000", strokeThickness:3 })
       .setScrollFactor(0).setOrigin(0,1).setDepth(2000);
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
+
+    if (DEBUG){
+      this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0);
+    }
   }
 
   // ------- Interaktionen -------
@@ -188,7 +238,8 @@ export default class Level2 extends Phaser.Scene {
         d.setTexture("door_open");
         d.setData("locked", false);
         d.disableBody(true, true);                 // keine Kollision mehr
-        this.add.image(d.x, d.y, "door_open").setDepth(-4); // Deko
+        // Deko an gleicher Stelle (optische “offene Tür”)
+        this.add.image(d.x, d.y, "door_open").setDepth(-4);
       }
     });
   }
@@ -203,6 +254,8 @@ export default class Level2 extends Phaser.Scene {
 
   // ------- Update / Bewegung -------
   update(){
+    if (!this.player) return;
+
     const speed = 300;
     const ix = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
                (this.keys.right.isDown|| this.keys.d.isDown ?  1 : 0);
@@ -253,25 +306,27 @@ export default class Level2 extends Phaser.Scene {
     const leftX = W - RIGHT_PAD - BAR_W, y = 40;
 
     const bg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0xffffff, 0.12)
-      .setOrigin(0,0.5).setScrollFactor(0).setDepth(1000);
+      .setOrigin(0,0.5).setScrollFactor(0).setDepth(1998);
 
     const fg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0x67b7ff, 0.95)
-      .setOrigin(0,0.5).setScrollFactor(0).setDepth(1001);
+      .setOrigin(0,0.5).setScrollFactor(0).setDepth(1999);
 
     const outline = this.add.rectangle(leftX, y, BAR_W, BAR_H)
       .setOrigin(0,0.5).setStrokeStyle(2, 0xaad4ff, 1)
-      .setScrollFactor(0).setDepth(1002).setFillStyle(0,0);
+      .setScrollFactor(0).setDepth(2000).setFillStyle(0,0);
 
     this.add.text(leftX + BAR_W/2, y + 24, "Sauerstoff", {
-      fontFamily:"system-ui", fontSize:"14px", color:"#a0c8ff"
-    }).setOrigin(0.5,0).setScrollFactor(0).setDepth(1002);
+      fontFamily:"system-ui", fontSize:"14px", color:"#a0c8ff",
+      stroke:"#000", strokeThickness:2
+    }).setOrigin(0.5,0).setScrollFactor(0).setDepth(2000);
 
     return { bg, fg, outline, leftX, width: BAR_W };
   }
 
   updateOxygenBar(){
     const p = Phaser.Math.Clamp(this.oxygen/this.oxygenMax, 0, 1);
-    this.oxyBar.fg.scaleX = p; // füllt von links
+    // Breite von links füllen (kein NaN bei 0)
+    this.oxyBar.fg.scaleX = Math.max(0.0001, p);
   }
 
   updateHud(){
@@ -295,7 +350,8 @@ export default class Level2 extends Phaser.Scene {
     const panel=this.add.rectangle(W/2, H*0.92, 1100, 64, 0x000000, 0.55)
       .setScrollFactor(0).setDepth(1500);
     const t=this.add.text(W/2, H*0.92, msg,
-      { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff", wordWrap:{width:1000} })
+      { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff", wordWrap:{width:1000},
+        stroke:"#000", strokeThickness:3 })
       .setOrigin(0.5).setScrollFactor(0).setDepth(1501);
     this.time.delayedCall(1400, ()=>{ panel.destroy(); t.destroy(); });
   }
@@ -322,12 +378,14 @@ export default class Level2 extends Phaser.Scene {
     const W=this.scale.width, H=this.scale.height;
     const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0).setDepth(3000);
     const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0).setDepth(3001);
-    this.add.text(W/2,H/2-90,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff"})
+    this.add.text(W/2,H/2-90,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
+      stroke:"#000", strokeThickness:4 })
       .setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
     const makeBtn = (txt, y, onClick)=>{
       const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(3002).setInteractive({ useHandCursor:true });
-      const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff"}).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
+      const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff",
+        stroke:"#000", strokeThickness:3 }).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
       r.on("pointerover", ()=>r.setFillStyle(0x134062,1));
       r.on("pointerout",  ()=>r.setFillStyle(0x0d2e46,1));
       r.on("pointerdown", ()=>{ onClick(); dim.destroy(); panel.destroy(); r.destroy(); t.destroy(); });
@@ -336,4 +394,3 @@ export default class Level2 extends Phaser.Scene {
     makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
   }
 }
-
