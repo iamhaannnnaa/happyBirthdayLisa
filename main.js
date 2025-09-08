@@ -2,7 +2,7 @@ const Phaser = window.Phaser;
 import SplashScene from "./scenes/splash.js";
 import MenuScene from "./scenes/menu.js";     // ⬅️ NEU
 import Level1 from "./scenes/level1.js";
-import Level2 from "./scenes/level2.js?v=L2-2025-09-08-b";
+import Level2 from "./scenes/level2_v2.js";
 
 
 const DESIGN_WIDTH = 1920, DESIGN_HEIGHT = 1080;
