@@ -2,7 +2,36 @@
 const Phaser = window.Phaser;
 const DEBUG = false;
 
+/* === DEBUG: Level2 Version Marker (safe in any setup) === */
+(function () {
+  const VERSION = "L2-2025-09-08-c"; // <- bei jeder Änderung anpassen
+  const now = new Date().toISOString();
+
+  // Versuche, die URL der geladenen Datei zu ermitteln – ohne import.meta
+  let url = "(unknown)";
+  try {
+    if (typeof document !== "undefined") {
+      url = document.currentScript?.src
+         || (document.getElementsByTagName("script")[document.scripts.length - 1]?.src)
+         || location.href;
+    }
+  } catch (_) {}
+
+  const tag = "color:#fff;background:#4cf;padding:1px 6px;border-radius:4px;";
+  const h   = "color:#4cf;font-weight:700;";
+  const sub = "color:#9aa;";
+  console.log(`%c[Level2] geladen: %c${VERSION}%c @ ${now}`, h, tag, sub);
+  console.log("%cQuelle:", sub, url);
+
+  if (typeof window !== "undefined") {
+    window.__LEVEL2_VERSION__ = VERSION;
+    window.level2Info = () => ({ version: VERSION, url, loadedAt: now });
+  }
+})();
+
+
 export default class Level2 extends Phaser.Scene {
+  
   constructor(){ super("Level2"); }
 
   preload(){
@@ -393,4 +422,5 @@ export default class Level2 extends Phaser.Scene {
     makeBtn("Nochmal",  H/2+10, ()=> this.scene.restart());
     makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
   }
+
 }
