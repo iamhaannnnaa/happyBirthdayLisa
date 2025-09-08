@@ -2,36 +2,42 @@
 const Phaser = window.Phaser;
 const DEBUG = false;
 
-/* === DEBUG: Level2 Version Marker (safe in any setup) === */
+/* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
 (function () {
-  const VERSION = "L2-2025-09-08-c"; // <- bei jeder Änderung anpassen
-  const now = new Date().toISOString();
+  var VERSION = "L2-2025-09-08-final";
+  var now = new Date().toISOString();
+  var url = "(unknown)";
 
-  // Versuche, die URL der geladenen Datei zu ermitteln – ohne import.meta
-  let url = "(unknown)";
   try {
     if (typeof document !== "undefined") {
-      url = document.currentScript?.src
-         || (document.getElementsByTagName("script")[document.scripts.length - 1]?.src)
-         || location.href;
+      if (document.currentScript && document.currentScript.src) {
+        url = document.currentScript.src;
+      } else {
+        var scripts = document.getElementsByTagName("script");
+        if (scripts && scripts.length) {
+          var last = scripts[scripts.length - 1];
+          if (last && last.src) url = last.src;
+        }
+      }
     }
-  } catch (_) {}
+    if (url === "(unknown)" && typeof location !== "undefined" && location.href) {
+      url = location.href;
+    }
+  } catch (e) {}
 
-  const tag = "color:#fff;background:#4cf;padding:1px 6px;border-radius:4px;";
-  const h   = "color:#4cf;font-weight:700;";
-  const sub = "color:#9aa;";
-  console.log(`%c[Level2] geladen: %c${VERSION}%c @ ${now}`, h, tag, sub);
-  console.log("%cQuelle:", sub, url);
-
-  if (typeof window !== "undefined") {
-    window.__LEVEL2_VERSION__ = VERSION;
-    window.level2Info = () => ({ version: VERSION, url, loadedAt: now });
-  }
+  try {
+    console.log("%c[Level2] geladen:", "color:#4cf;font-weight:700;", VERSION, "@", now);
+    console.log("Quelle:", url);
+    if (typeof window !== "undefined") {
+      try {
+        Object.defineProperty(window, "__LEVEL2_VERSION__", { value: VERSION, writable: false, configurable: true });
+      } catch (_) { window.__LEVEL2_VERSION__ = VERSION; }
+      window.level2Info = function () { return { version: VERSION, url: url, loadedAt: now }; };
+    }
+  } catch (e) {}
 })();
 
-
 export default class Level2 extends Phaser.Scene {
-  
   constructor(){ super("Level2"); }
 
   preload(){
@@ -104,15 +110,9 @@ export default class Level2 extends Phaser.Scene {
         if (ch === "#"){
           const w = this.walls.create(px, py, "wall");
           // volle Kachel-Kollision & zentrierte Bodies
-          w.body.setSize(TILE, TILE);
-          w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
-          // Sicherheitsnetz: alle Seiten kollidierbar
-          if (w.body.checkCollision){
-            w.body.checkCollision.none  = false;
-            w.body.checkCollision.up    = true;
-            w.body.checkCollision.down  = true;
-            w.body.checkCollision.left  = true;
-            w.body.checkCollision.right = true;
+          if (w.body) {
+            w.body.setSize(TILE, TILE);
+            w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
           }
           w.refreshBody();
         } else if (ch === "S"){
@@ -136,9 +136,9 @@ export default class Level2 extends Phaser.Scene {
       }
     }
 
-    // Fallback: nach dem Erstellen nochmal alle Wände “hart” refreshen
-    this.walls.children.iterate(w=>{
-      if (!w) return;
+    // Sicherheit: alle Wände nachträglich vollflächig kollidierbar machen
+    this.walls.children.iterate(function(w){
+      if (!w || !w.body) return;
       w.body.setSize(TILE, TILE);
       w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
       if (w.body.checkCollision){
@@ -189,20 +189,18 @@ export default class Level2 extends Phaser.Scene {
     // HUD direkt korrekt anzeigen
     this.updateHud();
 
-    // ------- O₂-Anzeige -------
+    // ------- O₂-Anzeige (links bündig) -------
     this.gameOver   = false;
     this.oxygenMax  = 40;
     this.oxygen     = this.oxygenMax;
-    this.oxyBar     = this.makeOxygenBar();
-
-    // O₂ sofort sichtbar/korrekt
+    this.oxyBar     = this.makeOxygenBarLeft(); // linksbündig
     this.updateOxygenBar();
 
-    // HUD/O₂ nach vorn holen (falls verdeckt)
+    // HUD/O₂ nach vorn holen (ohne optional chaining)
     this.children.bringToTop(this.hud);
-    if (this.oxyBar?.bg)      this.children.bringToTop(this.oxyBar.bg);
-    if (this.oxyBar?.fg)      this.children.bringToTop(this.oxyBar.fg);
-    if (this.oxyBar?.outline) this.children.bringToTop(this.oxyBar.outline);
+    if (this.oxyBar && this.oxyBar.bg)      this.children.bringToTop(this.oxyBar.bg);
+    if (this.oxyBar && this.oxyBar.fg)      this.children.bringToTop(this.oxyBar.fg);
+    if (this.oxyBar && this.oxyBar.outline) this.children.bringToTop(this.oxyBar.outline);
 
     // O₂-Timer
     this.time.addEvent({
@@ -329,39 +327,40 @@ export default class Level2 extends Phaser.Scene {
     g.destroy();
   }
 
-  makeOxygenBar(){
-    const W = this.scale.width;
-    const BAR_W = 220, BAR_H = 20, RIGHT_PAD = 40;
-    const leftX = W - RIGHT_PAD - BAR_W, y = 40;
+  // O₂ linksbündig
+  makeOxygenBarLeft(){
+    const x = 16, y = 60, w = 220, h = 20;
 
-    const bg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0xffffff, 0.12)
+    const bg = this.add.rectangle(x, y, w, h, 0xffffff, 0.12)
       .setOrigin(0,0.5).setScrollFactor(0).setDepth(1998);
 
-    const fg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0x67b7ff, 0.95)
+    const fg = this.add.rectangle(x, y, w, h, 0x67b7ff, 0.95)
       .setOrigin(0,0.5).setScrollFactor(0).setDepth(1999);
 
-    const outline = this.add.rectangle(leftX, y, BAR_W, BAR_H)
+    const outline = this.add.rectangle(x, y, w, h)
       .setOrigin(0,0.5).setStrokeStyle(2, 0xaad4ff, 1)
       .setScrollFactor(0).setDepth(2000).setFillStyle(0,0);
 
-    this.add.text(leftX + BAR_W/2, y + 24, "Sauerstoff", {
+    this.add.text(x, y + 18, "Sauerstoff", {
       fontFamily:"system-ui", fontSize:"14px", color:"#a0c8ff",
       stroke:"#000", strokeThickness:2
-    }).setOrigin(0.5,0).setScrollFactor(0).setDepth(2000);
+    }).setOrigin(0,0).setScrollFactor(0).setDepth(2000);
 
-    return { bg, fg, outline, leftX, width: BAR_W };
+    return { bg, fg, outline, w };
   }
 
   updateOxygenBar(){
     const p = Phaser.Math.Clamp(this.oxygen/this.oxygenMax, 0, 1);
-    // Breite von links füllen (kein NaN bei 0)
-    this.oxyBar.fg.scaleX = Math.max(0.0001, p);
+    // von links füllen (Origin x=0)
+    if (this.oxyBar && this.oxyBar.fg) {
+      this.oxyBar.fg.scaleX = Math.max(0.0001, p);
+    }
   }
 
   updateHud(){
     const a = this.haveMomKey ? "✓" : "–";
     const b = this.haveDadKey ? "✓" : "–";
-    this.hud.setText(`Schlüssel: ${a} / ${b}\n[E] reden / benutzen`);
+    this.hud.setText("Schlüssel: " + a + " / " + b + "\n[E] reden / benutzen");
   }
 
   updateBodySize(){
@@ -422,5 +421,5 @@ export default class Level2 extends Phaser.Scene {
     makeBtn("Nochmal",  H/2+10, ()=> this.scene.restart());
     makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
   }
-
 }
+
