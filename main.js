@@ -3,6 +3,7 @@ import SplashScene from "./scenes/splash.js";
 import MenuScene from "./scenes/menu.js";     // ⬅️ NEU
 import Level1 from "./scenes/level1.js";
 import Level2 from "./scenes/level2_v2.js";
+import Level3 from "./scenes/level3.js";
 
 
 const DESIGN_WIDTH = 1920, DESIGN_HEIGHT = 1080;
