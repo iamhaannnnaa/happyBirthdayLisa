@@ -39,7 +39,7 @@ export default class MenuScene extends Phaser.Scene {
   makeButton(H*0.38, "Level 1 – Limes-Ruine", () => this.scene.start("Level1"));
   makeButton(H*0.50, "Level 2 – Thermen-Oase", () => this.scene.start("Level2"));
   makeButton(H*0.62, "Level 3 – Reichstädter Fest", () => this.scene.start("Level3"));
-  makeButton(H*0.74, "Level 4 – Aalener Spion", () => this.showToast("Level 4 kommt gleich 👀"), false);
+  //makeButton(H*0.74, "Level 4 – Aalener Spion", () => this.showToast("Level 4 kommt gleich 👀"), false);
 
   this.input.keyboard.on("keydown-ONE",   ()=> this.scene.start("Level1"));
   this.input.keyboard.on("keydown-TWO",   ()=> this.showToast("Level 2 kommt gleich 👀"));
