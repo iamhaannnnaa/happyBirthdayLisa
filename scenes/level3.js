@@ -1,12 +1,12 @@
 // scenes/level3.js
 const Phaser = window.Phaser;
-const L3_VERSION = "L3-openworld-2025-09-09";
+const L3_VERSION = "L3-openworld-2025-09-09-b";
 
 export default class Level3 extends Phaser.Scene {
   constructor(){ super("Level3"); }
 
   preload(){
-    // Taucher-Spritesheet (480x480 Frames aus deiner PNG)
+    // Taucher-Spritesheet (aus deiner PNG, 480x480 Frames)
     this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
       frameWidth: 480, frameHeight: 480, endFrame: 15
     });
@@ -20,12 +20,12 @@ export default class Level3 extends Phaser.Scene {
     this.WORLD_H = 3800;
     this.physics.world.setBounds(0, 0, this.WORLD_W, this.WORLD_H);
 
-    // Hintergrund: ruhiges Blau (kein TileSprite ohne Texture!)
+    // Hintergrund: ruhiges Blau
     this.add.rectangle(this.WORLD_W/2, this.WORLD_H/2, this.WORLD_W, this.WORLD_H, 0x07263a).setDepth(-50);
 
-    // --- Platzhalter-Texturen für Punkte (Haie) generieren ---
+    // --- Platzhalter-Texturen ---
     this.ensureDotTexture("dot_white", 0xffffff);
-    // Farben / "Arten" – später ersetzen wir das durch echte Haie
+    this.ensureGrassTexture(); // groß wie der Taucher
     this.SPECIES = [
       { id:"great_white", name:"Weißer Hai",    color:0xcfd6d6 },
       { id:"hammerhead",  name:"Hammerhai",     color:0xbdd7ff },
@@ -38,8 +38,6 @@ export default class Level3 extends Phaser.Scene {
       { id:"blue",        name:"Blauhai",       color:0x6aa6ff },
       { id:"zebra",       name:"Zebrahai",      color:0xe6d18f }
     ];
-
-    // Für jede Art eine eigene Punkt-Textur (Kreis)
     for (const s of this.SPECIES) this.ensureDotTexture("dot_"+s.id, s.color);
 
     // --- Lokaler Fortschritt (Logbuch) ---
@@ -54,6 +52,7 @@ export default class Level3 extends Phaser.Scene {
     this.player.setMaxVelocity(360,360);
     this.makeDiverAnimations();
     this.player.play("diver_idle");
+
     this.cameras.main.setBounds(0,0,this.WORLD_W,this.WORLD_H);
     this.cameras.main.setZoom(1.25);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -67,41 +66,37 @@ export default class Level3 extends Phaser.Scene {
     });
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
 
-    // --- Haie als farbige Punkte spawnen ---
+    // --- Gräser (Deko, groß wie Taucher) ---
+    this.placeSeagrassPatches(120); // Anzahl der Halme insgesamt
+
+    // --- Haie als farbige Punkte (etwas weniger als vorher) ---
     this.sharks = this.physics.add.group();
-    const perSpecies = 10; // wie viele Punkte pro Art
+    const perSpecies = 6; // "ein bisschen weniger"
     for (const s of this.SPECIES){
       for (let i=0;i<perSpecies;i++){
         const x = 200 + Math.random()*(this.WORLD_W-400);
         const y = 200 + Math.random()*(this.WORLD_H-400);
         const spr = this.sharks.create(x, y, "dot_"+s.id);
-        spr.setCircle(6); // kleine Kollisionsfläche
+        spr.setCircle(6);
         spr.setData("id", s.id);
         spr.setData("name", s.name);
         spr.setData("color", s.color);
-        // gemütliches "Schwimmen"
         this.assignRandomVelocity(spr, Phaser.Math.Between(40, 90));
         this.scheduleWander(spr, 1200, 2600);
       }
     }
-
-    // Spieler vs. Punkte: leicht abprallen
     this.physics.add.collider(this.player, this.sharks);
 
     // --- Kamera-Frame (Foto-Rahmen) ---
-    this.frameW = 480;   // Breite/ Höhe des Rahmens in Pixeln (Bildschirmkoords)
+    this.frameW = 480;
     this.frameH = 300;
     this.photoFrame = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.frameW, this.frameH)
       .setStrokeStyle(3, 0xaad4ff, 0.9)
-      .setAlpha(0.9)
-      .setDepth(1000)
-      .setScrollFactor(0);
-
-    // kleiner Fadenkreuzpunkt in der Mitte (optional)
+      .setAlpha(0.9).setDepth(1000).setScrollFactor(0);
     this.add.circle(this.scale.width/2, this.scale.height/2, 2, 0xaad4ff, 0.9)
       .setDepth(1001).setScrollFactor(0);
 
-    // Blitz-Overlay bei Foto
+    // Blitz-Overlay
     this.flash = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 0xffffff, 0)
       .setScrollFactor(0).setDepth(1200);
 
@@ -117,12 +112,13 @@ export default class Level3 extends Phaser.Scene {
     }).setScrollFactor(0).setDepth(1100);
     this.updateHud();
 
-    // --- Logbuch-Button unten rechts ---
-    this.bookBtn = this.makeBookButton();
+    // --- Capture-Meldung oben rechts (nur bei NEU gefangen) ---
+    this.capturePanel = this.makeCapturePanel();
 
-    // Buch-Overlay (anfangs unsichtbar)
+    // --- Logbuch-Button unten rechts + Overlay ---
+    this.bookBtn = this.makeBookButton();
     this.bookOpen = false;
-    this.bookLayer = this.makeBookLayer();
+    this.bookLayer = this.makeBookLayer();  // zeigt, was true/false ist
     this.bookLayer.setVisible(false);
   }
 
@@ -133,14 +129,12 @@ export default class Level3 extends Phaser.Scene {
       if (this.anims.exists("diver_idle")) this.player.play("diver_idle", true);
       return;
     }
-
     const speed = 300;
     const k = this.keys;
     const ix = (k.left.isDown || k.a.isDown ? -1 : 0) + (k.right.isDown || k.d.isDown ? 1 : 0);
     const iy = (k.up.isDown   || k.w.isDown ? -1 : 0) + (k.down.isDown || k.s.isDown ? 1 : 0);
 
     this.player.setAcceleration(ix*speed*2, iy*speed*2);
-
     if (ix!==0 || iy!==0){
       if (this.anims.exists("diver_swim")) this.player.play("diver_swim", true);
       const ang = Math.atan2(iy, ix);
@@ -161,10 +155,9 @@ export default class Level3 extends Phaser.Scene {
     this.flash.setAlpha(0.8);
     this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
 
-    // Frame in Weltkoordinaten berechnen (zentriert auf Kamera)
+    // Frame in Weltkoordinaten (zentriert auf Kamera)
     const cam = this.cameras.main;
-    const cx = cam.midPoint.x;
-    const cy = cam.midPoint.y;
+    const cx = cam.midPoint.x, cy = cam.midPoint.y;
     const halfW = (this.frameW / cam.zoom) / 2;
     const halfH = (this.frameH / cam.zoom) / 2;
     const left = cx - halfW, right = cx + halfW, top = cy - halfH, bottom = cy + halfH;
@@ -173,29 +166,20 @@ export default class Level3 extends Phaser.Scene {
     let target = null;
     this.sharks.children.iterate(s=>{
       if (!s) return;
-      if (s.x >= left && s.x <= right && s.y >= top && s.y <= bottom) {
-        target = s;
-        return false; // break
-      }
+      if (s.x >= left && s.x <= right && s.y >= top && s.y <= bottom) { target = s; return false; }
     });
-
-    if (!target) {
-      this.toast("Kein Hai im Kamera-Rahmen.");
-      return;
-    }
+    if (!target) return; // keine Meldung nötig
 
     const id = target.getData("id");
     const name = target.getData("name");
-    if (this.dex.caught[id]) {
-      this.toast("Schon im Logbuch: " + name);
-      return;
-    }
+    if (this.dex.caught[id]) return; // schon gefangen → KEINE Meldung
 
+    // neu gefangen → speichern + HUD + Meldung oben rechts
     this.dex.caught[id] = true;
     this.saveDex();
     this.updateHud();
     if (this.bookOpen) this.refreshBook();
-    this.toast("Foto gelungen! → " + name + " eingetragen");
+    this.showCapture(name);
   }
 
   // ================= UI / HUD =================
@@ -203,6 +187,36 @@ export default class Level3 extends Phaser.Scene {
     const total = this.SPECIES.length;
     let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
     this.hud.setText(`Fotografiert: ${have} / ${total}   [SPACE] Foto   [B] Logbuch   [ESC] Menü`);
+  }
+
+  makeCapturePanel(){
+    const pad = 16;
+    const W = this.scale.width;
+    const panel = this.add.container(W - (320 + pad), pad).setScrollFactor(0).setDepth(1400);
+    const bg = this.add.rectangle(0, 0, 320, 52, 0x0d2e46, 0.95).setOrigin(0,0);
+    const text = this.add.text(12, 8, "", {
+      fontFamily:"system-ui, sans-serif", fontSize:"18px", color:"#cfe9ff", stroke:"#000", strokeThickness:3,
+      wordWrap: { width: 296 }
+    });
+    panel.add([bg, text]);
+    panel.setAlpha(0);
+    panel._text = text;
+    return panel;
+  }
+
+  showCapture(name){
+    const p = this.capturePanel;
+    p._text.setText(`Neu fotografiert:\n${name}`);
+    this.tweens.killTweensOf(p);
+    p.setAlpha(0).y = 16;
+    this.tweens.add({
+      targets: p, alpha: 1, y: 16, duration: 120, ease: "Quad.easeOut",
+      onComplete: () => {
+        this.tweens.add({
+          targets: p, alpha: 0, y: 0, delay: 1400, duration: 220, ease: "Quad.easeIn"
+        });
+      }
+    });
   }
 
   makeBookButton(){
@@ -218,7 +232,6 @@ export default class Level3 extends Phaser.Scene {
     btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));
     btn.on("pointerup",   ()=> this.toggleBook());
     this.input.keyboard.on("keydown-B", ()=> this.toggleBook());
-    // Pack beides in ein Container-loses Paar zurück (wir steuern Sichtbarkeit über Book-Layer)
     btn._label = txt;
     return btn;
   }
@@ -229,20 +242,12 @@ export default class Level3 extends Phaser.Scene {
     const dim = this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.55);
     const panelW = Math.min(920, W*0.9), panelH = Math.min(620, H*0.85);
     const panel = this.add.rectangle(W/2, H/2, panelW, panelH, 0x071a2b, 0.98);
-    const title = this.add.text(W/2, panel.getTopCenter().y + 18, "Logbuch", {
-      fontFamily:"system-ui", fontSize:"32px", color:"#cfe9ff", stroke:"#000", strokeThickness:4
+    const title = this.add.text(W/2, panel.getTopCenter().y + 16, "Logbuch  —  [B] schließen", {
+      fontFamily:"system-ui", fontSize:"28px", color:"#cfe9ff", stroke:"#000", strokeThickness:4
     }).setOrigin(0.5,0);
 
-    // Zurück-Pfeil (rechts oben)
-    const back = this.add.text(panel.getRightCenter().x - 16, panel.getTopCenter().y + 16, "↩︎", {
-      fontFamily:"system-ui", fontSize:"26px", color:"#cfe9ff", stroke:"#000", strokeThickness:3
-    }).setOrigin(1,0).setInteractive({useHandCursor:true});
-    back.on("pointerup", ()=> this.toggleBook());
-
-    // Liste
     const list = this.add.container(panel.getTopLeft().x + 28, panel.getTopLeft().y + 68);
-
-    layer.add([dim, panel, title, back, list]);
+    layer.add([dim, panel, title, list]);
     layer._panel = panel;
     layer._list = list;
 
@@ -258,7 +263,7 @@ export default class Level3 extends Phaser.Scene {
     let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
 
     // Fortschritt
-    const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 56,
+    const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 52,
       `Fortschritt: ${have} / ${total}`, {
         fontFamily:"system-ui", fontSize:"18px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
       }).setOrigin(0.5,0);
@@ -275,7 +280,6 @@ export default class Level3 extends Phaser.Scene {
       const x = col * colW;
       const y = 40 + row * rowH;
 
-      // farbiger Punkt + Name + Status
       const dot = this.add.circle(x+10, y+12, 8, s.color);
       const name = this.add.text(x+28, y, s.name, {
         fontFamily:"system-ui", fontSize:"18px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
@@ -300,7 +304,6 @@ export default class Level3 extends Phaser.Scene {
     btn.on("pointerup", ()=>{
       this.dex.caught = {};
       this.saveDex(); this.updateHud(); this.refreshBook();
-      this.toast("Logbuch zurückgesetzt.");
     });
 
     list.add(btn); list.add(btnt);
@@ -343,6 +346,32 @@ export default class Level3 extends Phaser.Scene {
     g.destroy();
   }
 
+  ensureGrassTexture(){
+    if (this.textures.exists("seagrass")) return;
+    // ca. so hoch wie der Taucher (~115px bei Scale 0.24)
+    const w = 32, h = 120;
+    const g = this.add.graphics();
+    g.fillStyle(0x0a6b3c, 1);
+    // kleiner „Büschel“ aus drei Blättern
+    g.fillEllipse(w*0.35, h*0.65, 18, 90);
+    g.fillEllipse(w*0.60, h*0.70, 16, 100);
+    g.fillEllipse(w*0.45, h*0.72, 14, 80);
+    g.lineStyle(2, 0x063f24, 0.6).strokeEllipse(w*0.35, h*0.65, 18, 90);
+    g.generateTexture("seagrass", w, h);
+    g.destroy();
+  }
+
+  placeSeagrassPatches(count){
+    for (let i=0;i<count;i++){
+      const x = 100 + Math.random()*(this.WORLD_W - 200);
+      const y = 100 + Math.random()*(this.WORLD_H - 200);
+      const s = this.add.image(x, y, "seagrass")
+        .setDepth(-5)
+        .setScale(1 + Math.random()*0.4)
+        .setRotation((Math.random()-0.5)*0.3);
+    }
+  }
+
   assignRandomVelocity(spr, speed){
     const ang = Math.random()*Math.PI*2;
     spr.setVelocity(Math.cos(ang)*speed, Math.sin(ang)*speed);
@@ -355,17 +384,6 @@ export default class Level3 extends Phaser.Scene {
       this.assignRandomVelocity(spr, Phaser.Math.Between(40, 90));
       this.scheduleWander(spr, minMs, maxMs);
     });
-  }
-
-  toast(msg){
-    const W=this.scale.width, H=this.scale.height;
-    const panel=this.add.rectangle(W/2, H*0.92, 1100, 52, 0x000000, 0.55)
-      .setScrollFactor(0).setDepth(1500);
-    const t=this.add.text(W/2, H*0.92, msg,
-      { fontFamily:"system-ui, sans-serif", fontSize:"20px", color:"#e6f0ff",
-        stroke:"#000", strokeThickness:3 })
-      .setOrigin(0.5).setScrollFactor(0).setDepth(1501);
-    this.time.delayedCall(1400, ()=>{ panel.destroy(); t.destroy(); });
   }
 
   loadDex(){
@@ -381,3 +399,4 @@ export default class Level3 extends Phaser.Scene {
     catch(e){ console.warn("Dex speichern fehlgeschlagen:", e); }
   }
 }
+
