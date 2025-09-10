@@ -1,6 +1,6 @@
 // scenes/level3.js
 const Phaser = window.Phaser;
-const L3_VERSION = "L3-openworld-2025-09-09-c"; // Änderungen: große Haie, kein Gras, UI-Button fix
+const L3_VERSION = "L3-openworld-2025-09-09-d"; // Änderungen: große Haie, kein Gras, UI-Button fix, + prozeduraler Wasser-Background
 
 export default class Level3 extends Phaser.Scene {
   constructor(){ super("Level3"); }
@@ -10,6 +10,10 @@ export default class Level3 extends Phaser.Scene {
     this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
       frameWidth: 480, frameHeight: 480, endFrame: 15
     });
+
+    // [NEU] Falls du es lieber im preload haben willst: wir könnten die Texturen
+    // auch hier erzeugen. Ich lasse die Erzeugung unten in create(), damit alle
+    // Canvas-Funktionen sicher verfügbar sind.
   }
 
   create(){
@@ -20,8 +24,36 @@ export default class Level3 extends Phaser.Scene {
     this.WORLD_H = 3800;
     this.physics.world.setBounds(0, 0, this.WORLD_W, this.WORLD_H);
 
-    // Hintergrund: ruhiges Blau
-    this.add.rectangle(this.WORLD_W/2, this.WORLD_H/2, this.WORLD_W, this.WORLD_H, 0x07263a).setDepth(-50);
+    // [ALT] Hintergrund-Rechteck (ruhiges Blau) -> ENTFERNT
+    // this.add.rectangle(this.WORLD_W/2, this.WORLD_H/2, this.WORLD_W, this.WORLD_H, 0x07263a).setDepth(-50);
+
+    // [NEU] === Prozeduraler Wasser-Background (TileSprites) ===
+    // 1) Kachel-Texturen generieren (klein & kachelbar)
+    this.makeSeamlessDotsTexture("water_tile_1", 256, {
+      bg: 0x07263a,         // Grundfarbe Wasser
+      dotColor: 0x0e4163,   // dunklere Sprenkel
+      dotAlpha: 0.10,
+      dotCount: 240,
+      dotMin: 1,
+      dotMax: 2
+    });
+    this.makeSeamlessBlobsTexture("water_caustics", 256, {
+      blobColor: 0xaad4ff,  // Schimmer / Caustics
+      blobAlpha: 0.06,
+      blobCount: 90,
+      minR: 22,
+      maxR: 72
+    });
+
+    // 2) TileSprites als Hintergrund-Layer (füllen die ganze Welt)
+    this.bgBase = this.add.tileSprite(this.WORLD_W/2, this.WORLD_H/2, this.WORLD_W, this.WORLD_H, "water_tile_1")
+      .setDepth(-60);
+
+    this.bgCaustics = this.add.tileSprite(this.WORLD_W/2, this.WORLD_H/2, this.WORLD_W, this.WORLD_H, "water_caustics")
+      .setDepth(-59).setAlpha(0.8);
+
+    this.bgDust = this.add.tileSprite(this.WORLD_W/2, this.WORLD_H/2, this.WORLD_W, this.WORLD_H, "water_tile_1")
+      .setDepth(-58).setAlpha(0.25);
 
     // --- Platzhalter-Texturen (große "Punkte" als Haie) ---
     // ca. Tauchergröße: Diver 480px * 0.24 ≈ 115px -> wir machen 120x120 Kreise
@@ -148,6 +180,23 @@ export default class Level3 extends Phaser.Scene {
     } else {
       this.player.setAcceleration(0,0);
       if (this.anims.exists("diver_idle")) this.player.play("diver_idle", true);
+    }
+
+    // [NEU] === Parallax / Drift für Wasser ===
+    if (this.bgBase && this.bgCaustics && this.bgDust){
+      const cam = this.cameras.main;
+      // Parallax relativ zur Kameraposition
+      this.bgBase.tilePositionX = cam.scrollX * 0.08;
+      this.bgBase.tilePositionY = cam.scrollY * 0.06;
+
+      // Caustics leicht fließen lassen
+      this.bgCaustics.tilePositionX += 0.12;
+      this.bgCaustics.tilePositionY += 0.07;
+
+      // feiner Staub mit minimaler Eigenbewegung
+      const t = this.time.now || performance.now();
+      this.bgDust.tilePositionX = cam.scrollX * 0.10 + t * 0.0006;
+      this.bgDust.tilePositionY = cam.scrollY * 0.09 + t * 0.0004;
     }
   }
 
@@ -392,6 +441,105 @@ export default class Level3 extends Phaser.Scene {
     try { localStorage.setItem(this.dexKey, JSON.stringify({ caught: this.dex.caught })); }
     catch(e){ console.warn("Dex speichern fehlgeschlagen:", e); }
   }
+
+  // ===== [NEU] Tile-Generatoren: nahtlose Wasser-Texturen =====
+  makeSeamlessDotsTexture(key, size, { bg=0x07263a, dotColor=0x0e4163, dotAlpha=0.10, dotCount=220, dotMin=1, dotMax=2 } = {}){
+    if (this.textures.exists(key)) return;
+
+    const tex = this.textures.createCanvas(key, size, size);
+    const ctx = tex.getContext();
+
+    // Hintergrund
+    ctx.fillStyle = `#${bg.toString(16).padStart(6,"0")}`;
+    ctx.fillRect(0,0,size,size);
+
+    // Helper: Hex -> rgba()
+    const rgba = (hex, a=1)=> {
+      const r=(hex>>16)&255, g=(hex>>8)&255, b=hex&255;
+      return `rgba(${r},${g},${b},${a})`;
+    };
+
+    // Nahtlose Punkte mit Wrap-Kopien
+    ctx.fillStyle = rgba(dotColor, dotAlpha);
+    for (let i=0;i<dotCount;i++){
+      const x = Math.random()*size;
+      const y = Math.random()*size;
+      const r = dotMin + Math.random()*(dotMax-dotMin);
+
+      for (const dx of [-size,0,size]){
+        for (const dy of [-size,0,size]){
+          ctx.beginPath();
+          ctx.arc(x+dx, y+dy, r, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // leichte Unschärfe (Pseudo-Blur)
+    ctx.globalAlpha = 0.35;
+    ctx.drawImage(tex.getSourceImage(), -1, 0);
+    ctx.drawImage(tex.getSourceImage(), 1, 0);
+    ctx.drawImage(tex.getSourceImage(), 0, -1);
+    ctx.drawImage(tex.getSourceImage(), 0, 1);
+    ctx.globalAlpha = 1;
+
+    tex.refresh();
+  }
+
+  makeSeamlessBlobsTexture(key, size, { blobColor=0x1a5b86, blobAlpha=0.08, blobCount=70, minR=16, maxR=60 } = {}){
+    if (this.textures.exists(key)) return;
+
+    const tex = this.textures.createCanvas(key, size, size);
+    const ctx = tex.getContext();
+
+    const rgba = (hex, a=1)=> {
+      const r=(hex>>16)&255, g=(hex>>8)&255, b=hex&255;
+      return `rgba(${r},${g},${b},${a})`;
+    };
+
+    // transparent starten (nur Schimmer)
+    ctx.clearRect(0,0,size,size);
+
+    // weiche Blobs + Wrap-Kopien
+    for (let i=0;i<blobCount;i++){
+      const x = Math.random()*size;
+      const y = Math.random()*size;
+      const r = minR + Math.random()*(maxR-minR);
+
+      const drawBlob = (bx,by)=>{
+        const grad = ctx.createRadialGradient(bx,by, r*0.2, bx,by, r);
+        grad.addColorStop(0, rgba(blobColor, blobAlpha));
+        grad.addColorStop(1, rgba(blobColor, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(bx, by, r, 0, Math.PI*2);
+        ctx.fill();
+      };
+
+      for (const dx of [-size,0,size]){
+        for (const dy of [-size,0,size]){
+          drawBlob(x+dx,y+dy);
+        }
+      }
+    }
+
+    // dezente „Schraffur“-Streifen
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = rgba(0xffffff, 1);
+    for (let i=0;i<40;i++){
+      const x = Math.random()*size, y = Math.random()*size;
+      const w = 20+Math.random()*60, h = 2+Math.random()*3;
+      ctx.fillRect(x, y, w, h);
+      ctx.fillRect(x-size, y, w, h);
+      ctx.fillRect(x+size, y, w, h);
+      ctx.fillRect(x, y-size, w, h);
+      ctx.fillRect(x, y+size, w, h);
+    }
+    ctx.globalAlpha = 1;
+
+    tex.refresh();
+  }
 }
+
 
 

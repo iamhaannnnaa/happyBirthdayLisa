@@ -4,7 +4,7 @@ const DEBUG = false;
 
 /* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
 (function () {
-  var VERSION = "L2-2025-09-08-final";
+  var VERSION = "L2-2025-09-08-final+patch1";
   var now = new Date().toISOString();
   var url = "(unknown)";
 
@@ -53,7 +53,7 @@ export default class Level2 extends Phaser.Scene {
     // ------- Einstellungen -------
     const TILE         = 88;    // Größe der Kacheln
     const CAM_ZOOM     = 1.5;   // Kamera-Zoom
-    const PLAYER_SCALE = 0.24;  // Sprite-Skalierung
+    const PLAYER_SCALE = 0.20;  // Sprite-Skalierung (kleiner gemacht)
 
     this.TILE = TILE;
 
@@ -120,9 +120,11 @@ export default class Level2 extends Phaser.Scene {
         } else if (ch === "M"){
           const n = this.npcs.create(px, py, "mom").setData("id","mom");
           n.setData("line", "Mama (Kasse): 'Erst zahlen, dann saunieren!'");
+          n.setData("gaveKey", false);
         } else if (ch === "F"){
           const n = this.npcs.create(px, py, "dad").setData("id","dad");
           n.setData("line", "Papa (Sauna): 'Handtuch unterlegen!'");
+          n.setData("gaveKey", false);
         } else if (ch === "D"){
           const d = this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
           d.refreshBody();
@@ -179,9 +181,9 @@ export default class Level2 extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     // ------- HUD / Schlüssel -------
-    this.haveMomKey = false;
-    this.haveDadKey = false;
-    this.hud = this.add.text(16,16,"Schlüssel: – / –\n[E] reden / benutzen",
+    this.haveMomKey = false; // Schlüssel für D (door1)
+    this.haveDadKey = false; // Schlüssel für E (door2)
+    this.hud = this.add.text(16,16,"Schlüssel: 0 / 2\n[E] reden / benutzen",
       { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff",
         stroke:"#000", strokeThickness:3 })
       .setScrollFactor(0).setDepth(2000);
@@ -196,7 +198,7 @@ export default class Level2 extends Phaser.Scene {
     this.oxyBar     = this.makeOxygenBarLeft(); // linksbündig
     this.updateOxygenBar();
 
-    // HUD/O₂ nach vorn holen (ohne optional chaining)
+    // HUD/O₂ nach vorn holen
     this.children.bringToTop(this.hud);
     if (this.oxyBar && this.oxyBar.bg)      this.children.bringToTop(this.oxyBar.bg);
     if (this.oxyBar && this.oxyBar.fg)      this.children.bringToTop(this.oxyBar.fg);
@@ -219,7 +221,8 @@ export default class Level2 extends Phaser.Scene {
         this.showToast("Verschlossene Tür. Sprich mit Mama/Papa für Schlüssel!");
       }
     });
-    this.physics.add.overlap(this.player, this.npcs, (_pl, npc)=> this.talkTo(npc));
+    // -> Auto-Belohnung & Dialoge beim Berühren der NPCs
+    this.physics.add.overlap(this.player, this.npcs, (_pl, npc)=> this.onNpcTouch(npc));
     this.physics.add.overlap(this.player, this.exit, ()=> this.tryFinish());
 
     // Steuerung
@@ -238,25 +241,59 @@ export default class Level2 extends Phaser.Scene {
     if (DEBUG){
       this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0);
     }
+
+    // Einfacher Bildschirmrahmen (Overlay)
+    {
+      const W = this.scale.width, H = this.scale.height, d = 6;
+      const g = this.add.graphics().setScrollFactor(0).setDepth(2400);
+      g.lineStyle(d, 0x0d2e46, 0.9);
+      g.strokeRect(d, d, W - 2*d, H - 2*d);
+      this.uiFrame = g;
+      this.scale.on("resize", (gameSize)=>{
+        const w = gameSize.width, h = gameSize.height;
+        g.clear(); g.lineStyle(d, 0x0d2e46, 0.9);
+        g.strokeRect(d, d, w - 2*d, h - 2*d);
+      });
+    }
+
+    // Taste E schließt auch aktiv ein Dialogfenster
+    this._speechKeyBound = true;
+    this.input.keyboard.on("keydown-E", ()=> this.hideSpeech());
   }
 
   // ------- Interaktionen -------
-  talkTo(npc){
-    if (!this.keys.e.isDown) return;
-    const id = npc.getData("id");
+  // Beim Berühren eines NPC: Schlüssel vergeben + Sprechfenster
+  onNpcTouch(npc){
+    if (!npc || this.gameOver) return;
 
-    if (id === "mom" && !this.haveMomKey){
-      this.haveMomKey = true;
-      this.showToast(npc.getData("line") + "  → Kassen-Schlüssel erhalten!");
-      this.openDoor("door1");
-    } else if (id === "dad" && !this.haveDadKey){
-      this.haveDadKey = true;
-      this.showToast(npc.getData("line") + "  → Sauna-Schlüssel erhalten!");
-      this.openDoor("door2");
-    } else {
-      this.showToast(npc.getData("line"));
+    const id = npc.getData("id");
+    const alreadyGave = npc.getData("gaveKey") === true;
+    const line = npc.getData("line") || "";
+
+    if (id === "mom"){
+      // Mama gibt Schlüssel für D (door1)
+      if (!this.haveMomKey && !alreadyGave){
+        this.haveMomKey = true;
+        npc.setData("gaveKey", true);
+        this.openDoor("door1");
+        this.showSpeech(line + "\n→ Kassen-Schlüssel erhalten! (D)");
+        this.updateHud();
+        return;
+      }
+    } else if (id === "dad"){
+      // Papa gibt Schlüssel für E (door2)
+      if (!this.haveDadKey && !alreadyGave){
+        this.haveDadKey = true;
+        npc.setData("gaveKey", true);
+        this.openDoor("door2");
+        this.showSpeech(line + "\n→ Sauna-Schlüssel erhalten! (E)");
+        this.updateHud();
+        return;
+      }
     }
-    this.updateHud();
+
+    // Wenn bereits Schlüssel vergeben wurde: nur noch sprechen
+    this.showSpeech(line);
   }
 
   openDoor(id){
@@ -288,6 +325,11 @@ export default class Level2 extends Phaser.Scene {
                (this.keys.right.isDown|| this.keys.d.isDown ?  1 : 0);
     const iy = (this.keys.up.isDown   || this.keys.w.isDown ? -1 : 0) +
                (this.keys.down.isDown || this.keys.s.isDown ?  1 : 0);
+
+    // Sprechfenster schließen, sobald sich die Spielerin bewegt
+    if (this.speechUi && this.speechUi.alive && (ix !== 0 || iy !== 0)){
+      this.hideSpeech();
+    }
 
     this.player.body.setAcceleration(ix*speed*2, iy*speed*2);
 
@@ -358,9 +400,8 @@ export default class Level2 extends Phaser.Scene {
   }
 
   updateHud(){
-    const a = this.haveMomKey ? "✓" : "–";
-    const b = this.haveDadKey ? "✓" : "–";
-    this.hud.setText("Schlüssel: " + a + " / " + b + "\n[E] reden / benutzen");
+    const count = (this.haveMomKey?1:0) + (this.haveDadKey?1:0);
+    this.hud.setText("Schlüssel: " + count + " / 2\n[E] reden / benutzen");
   }
 
   updateBodySize(){
@@ -375,13 +416,42 @@ export default class Level2 extends Phaser.Scene {
 
   showToast(msg){
     const W=this.scale.width, H=this.scale.height;
-    const panel=this.add.rectangle(W/2, H*0.92, 1100, 64, 0x000000, 0.55)
+    const panel=this.add.rectangle(W/2, H*0.92, Math.min(1100, W-40), 64, 0x000000, 0.55)
       .setScrollFactor(0).setDepth(1500);
     const t=this.add.text(W/2, H*0.92, msg,
-      { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff", wordWrap:{width:1000},
-        stroke:"#000", strokeThickness:3 })
+      { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6f0ff", wordWrap:{width:Math.min(1000, W-100)},
+        stroke:"#000", strokeThickness:3, align:"center" })
       .setOrigin(0.5).setScrollFactor(0).setDepth(1501);
     this.time.delayedCall(1400, ()=>{ panel.destroy(); t.destroy(); });
+  }
+
+  // ——— Dialogfenster („Frame“) das bei Bewegung/E verschwindet ———
+  showSpeech(msg){
+    // Wenn bereits ein Speech offen ist: erst schließen
+    this.hideSpeech();
+
+    const W = this.scale.width, H = this.scale.height;
+
+    const panel = this.add.rectangle(W/2, H*0.82, Math.min(1100, W-40), 100, 0x001522, 0.80)
+      .setOrigin(0.5).setScrollFactor(0).setDepth(2500);
+    const text = this.add.text(W/2, panel.y, msg, {
+        fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#e6f0ff",
+        wordWrap:{ width: Math.min(1000, W-100) }, align:"center",
+        stroke:"#000", strokeThickness:3
+      })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(2501);
+
+    // Merker
+    this.speechUi = { panel, text, alive:true };
+  }
+
+  hideSpeech(){
+    if (this.speechUi && this.speechUi.alive){
+      this.speechUi.alive = false;
+      if (this.speechUi.panel && !this.speechUi.panel.destroyed) this.speechUi.panel.destroy();
+      if (this.speechUi.text  && !this.speechUi.text.destroyed ) this.speechUi.text.destroy();
+      this.speechUi = null;
+    }
   }
 
   // ------- Endbildschirme wie Level1 -------
@@ -391,6 +461,7 @@ export default class Level2 extends Phaser.Scene {
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
     if (this.textures.exists("diver")) this.player.play("diver_idle");
+    this.hideSpeech();
     this.showEndPanel("Level geschafft! 🎉");
   }
 
@@ -399,6 +470,7 @@ export default class Level2 extends Phaser.Scene {
     this.gameOver = true;
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
+    this.hideSpeech();
     this.showEndPanel(msg || "Game Over");
   }
 
