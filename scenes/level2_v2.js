@@ -1,295 +1,447 @@
-// scenes/level2_v2.js
+// scenes/level2.js
 const Phaser = window.Phaser;
+const DEBUG = false;
+
+/* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
+(function () {
+  var VERSION = "L2-2025-09-10-ui-topright";
+  var now = new Date().toISOString();
+  var url = "(unknown)";
+  try {
+    if (typeof document !== "undefined") {
+      if (document.currentScript && document.currentScript.src) {
+        url = document.currentScript.src;
+      } else {
+        var scripts = document.getElementsByTagName("script");
+        if (scripts && scripts.length) {
+          var last = scripts[scripts.length - 1];
+          if (last && last.src) url = last.src;
+        }
+      }
+    }
+    if (url === "(unknown)" && typeof location !== "undefined" && location.href) {
+      url = location.href;
+    }
+  } catch (e) {}
+  try {
+    console.log("%c[Level2] geladen:", "color:#4cf;font-weight:700;", VERSION, "@", now);
+    console.log("Quelle:", url);
+    if (typeof window !== "undefined") {
+      try {
+        Object.defineProperty(window, "__LEVEL2_VERSION__", { value: VERSION, writable: false, configurable: true });
+      } catch (_) { window.__LEVEL2_VERSION__ = VERSION; }
+      window.level2Info = function () { return { version: VERSION, url: url, loadedAt: now }; };
+    }
+  } catch (e) {}
+})();
 
 export default class Level2 extends Phaser.Scene {
-  constructor() {
-    super("Level2"); // fester Scene-Key
+  constructor(){ super("Level2"); }
+
+  preload(){
+    // Diver: 1920x1920 (4x4), Frames 480x480 – NUR als Spieler, NICHT als Hintergrund.
+    if (!this.textures.exists("diver")){
+      this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
+        frameWidth: 480, frameHeight: 480, endFrame: 15
+      });
+    }
   }
 
-  preload() {
-    // Nutze die Assets, die du bereits im Projekt hast.
-    // Falls einzelne Pfade fehlen, kommentiere sie einfach aus.
-    this.load.image("diver", "assets/sprites/diver_v4.png");
-    this.load.image("key", "assets/objects/key.png");
-    this.load.image("door", "assets/objects/door.png");
-    // Optionaler BG:
-    // this.load.image("level2_bg", "assets/backgrounds/level2_bg.png");
-  }
+  create(){
+    // ------- Einstellungen -------
+    const TILE         = 88;    // Größe der Kacheln
+    const CAM_ZOOM     = 1.5;   // Kamera-Zoom
+    const PLAYER_SCALE = 0.24;  // Sprite-Skalierung
+    this.TILE = TILE;
 
-  create() {
-    console.log("[Level2] create()");
+    // ------- Labyrinth (15 Zeilen × 28 Spalten) -------
+    const MAP = [
+      "############################",
+      "#S.....#......####.........#",
+      "###.##...####......#######.#",
+      "#...#..#.....#.###.......#.#",
+      "#.######.#.#.#.####.#.######",
+      "#....M#..#.#.#....#D###...##",
+      "############.######.....#..#",
+      "#...#F#....###.##...###.####",
+      "#.#.#...##........#...#....#",
+      "#.#.######.######.#.#.######",
+      "#.#.............#.#.#......#",
+      "#......#.#.##.#.#.#...##.#E#",
+      "######.#...##.#.#.####.#.#.#",
+      "#......#.#....#.#......###X#",
+      "############################"
+    ];
 
-    // ----- Welt / Kamera -----
-    const W = this.scale.width, H = this.scale.height;
-    this.cameras.main.setBackgroundColor("#06121f");
-    this.physics.world.setBounds(0, 0, 3200, 2000);
-    this.cameras.main.setBounds(0, 0, 3200, 2000);
+    this.mapW = MAP[0].length * TILE;
+    this.mapH = MAP.length     * TILE;
 
-    // Falls du einen Hintergrund hast:
-    // if (this.textures.exists("level2_bg")) {
-    //   this.add.image(1600, 1000, "level2_bg").setDisplaySize(3200, 2000).setDepth(-10);
-    // }
+    // ------- Welt & Kamera -------
+    this.cameras.main.setBackgroundColor("#041016");
+    this.physics.world.setBounds(0,0,this.mapW,this.mapH);
+    this.cameras.main.setBounds(0,0,this.mapW,this.mapH);
+    this.cameras.main.setRoundPixels(true);
+    this.cameras.main.setZoom(CAM_ZOOM);
 
-    // ----- Spieler (etwas kleiner als vorher) -----
-    // Wenn dein altes Scale ~1 war: wir nehmen 0.85 (≈ 15% kleiner)
-    this.player = this.physics.add.image(300, 300, "diver").setScale(0.85);
-    this.player.setCollideWorldBounds(true);
+    // Platzhalter-Texturen (Boden/Wände/Türen/Icons)
+    this.makeSimpleTextures();
 
-    // Steuerung
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    // Gruppen
+    this.walls = this.physics.add.staticGroup();
+    this.doors = this.physics.add.staticGroup();
+    this.npcs  = this.physics.add.staticGroup();
+    this.exit  = this.physics.add.staticGroup();
 
-    // ESC → zurück ins Menü
-    this.input.keyboard.on("keydown-ESC", () => {
-      this.scene.start("MenuScene");
+    // Welt aus MAP bauen
+    let startX = TILE*2, startY = TILE*2;
+    for (let y=0; y<MAP.length; y++){
+      for (let x=0; x<MAP[0].length; x++){
+        const ch = MAP[y][x];
+        const px = x*TILE + TILE/2;
+        const py = y*TILE + TILE/2;
+
+        // Boden (damit Gänge sichtbar sind) – KEIN Diver-Hintergrund!
+        this.add.image(px, py, "floor").setDepth(-5);
+
+        if (ch === "#"){
+          const w = this.walls.create(px, py, "wall");
+          if (w.body) {
+            w.body.setSize(TILE, TILE);
+            w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
+          }
+          w.refreshBody();
+        } else if (ch === "S"){
+          startX = px; startY = py;
+        } else if (ch === "M"){
+          const n = this.npcs.create(px, py, "mom").setData("id","mom");
+          n.setData("line", "Mama: \"Hier ist dein Schlüssel für die grüne Tür!\"");
+        } else if (ch === "F"){
+          const n = this.npcs.create(px, py, "dad").setData("id","dad");
+          n.setData("line", "Papa: \"Und ich öffne die rote Tür für dich!\"");
+        } else if (ch === "D"){
+          const d = this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
+          d.refreshBody();
+        } else if (ch === "E"){
+          const d = this.doors.create(px, py, "door2").setData("id","door2").setData("locked", true);
+          d.refreshBody();
+        } else if (ch === "X"){
+          const ex = this.exit.create(px, py, "exit");
+          ex.refreshBody();
+        }
+      }
+    }
+
+    // alle Wände voll kollidierbar
+    this.walls.children.iterate(function(w){
+      if (!w || !w.body) return;
+      w.body.setSize(TILE, TILE);
+      w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
+      if (w.body.checkCollision){
+        w.body.checkCollision.none  = false;
+        w.body.checkCollision.up    = true;
+        w.body.checkCollision.down  = true;
+        w.body.checkCollision.left  = true;
+        w.body.checkCollision.right = true;
+      }
+      w.refreshBody();
     });
+
+    // ------- Spieler -------
+    this.player = this.textures.exists("diver")
+      ? this.physics.add.sprite(startX, startY, "diver", 0).setScale(PLAYER_SCALE)
+      : this.physics.add.image(startX, startY, "player");
+
+    this.player.setCollideWorldBounds(true);
+    this.player.body.setDrag(600,600);
+    this.player.body.setMaxVelocity(320,320);
+    this.updateBodySize();
+    this.player.setFlipX(true); // Blickrichtung: rechts
+
+    // Animationen
+    if (this.textures.exists("diver")){
+      if (!this.anims.exists("diver_swim")){
+        this.anims.create({ key:"diver_swim",
+          frames:this.anims.generateFrameNumbers("diver",{start:0,end:15}),
+          frameRate:10, repeat:-1 });
+        this.anims.create({ key:"diver_idle",
+          frames:this.anims.generateFrameNumbers("diver",{start:0,end:1}),
+          frameRate:2, repeat:-1 });
+      }
+      this.player.play("diver_idle");
+    }
 
     // Kamera folgt
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
-    // ----- Sauerstoff-System + Schlüssel-Info in einem festen Frame (oben rechts) -----
-    this.maxOxygen = 100;
-    this.oxygen = this.maxOxygen;
-    this.keysCollected = 0;
-    this.totalKeys = 2;
+    // ------- HUD im Frame oben rechts -------
+    this.haveMomKey = false; // Tür D (grün)
+    this.haveDadKey = false; // Tür E (rot)
+    this.gameOver   = false;
 
-    this.ui = this.makeUIFrame();          // Container oben rechts
-    this.updateUI();                       // erste Anzeige
-    this.scale.on("resize", () => this.repositionUIFrame()); // bei Größenänderung
+    this.oxygenMax  = 40;
+    this.oxygen     = this.oxygenMax;
 
-    // O2-Countdown
+    this.ui = this.makeUIFrame();     // Frame oben rechts
+    this.updateUI();                  // erste Anzeige
+    this.scale.on("resize", () => this.repositionUIFrame()); // sicher neu platzieren
+
+    // O₂-Timer
     this.time.addEvent({
-      delay: 1000,
-      loop: true,
-      callback: () => {
-        this.oxygen = Math.max(0, this.oxygen - 1);
+      delay:1000, loop:true, callback: ()=>{
+        if (this.gameOver) return;
+        this.oxygen = Math.max(0, this.oxygen-1);
         this.updateUI();
-        if (this.oxygen <= 0) this.handleDrown();
-      },
+        if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
+      }
     });
 
-    // ----- Schlüssel & Tür -----
-    this.key1 = this.physics.add.image(900, 600, "key");
-    this.key2 = this.physics.add.image(1400, 1100, "key");
-    this.door = this.physics.add.staticImage(2800, 900, "door");
+    // Kollisionen/Overlaps
+    this.physics.add.collider(this.player, this.walls);
+    this.physics.add.collider(this.player, this.doors, (_pl, door)=>{
+      if (door.getData("locked")){
+        this.showInfo("Verschlossen. Hole dir die Schlüssel bei Mama & Papa.");
+      }
+    });
+    this.physics.add.overlap(this.player, this.npcs, (_pl, npc)=> this.talkTo(npc));
+    this.physics.add.overlap(this.player, this.exit, ()=> this.tryFinish());
 
-    this.physics.add.overlap(this.player, this.key1, () => this.tryPickKey(this.key1));
-    this.physics.add.overlap(this.player, this.key2, () => this.tryPickKey(this.key2));
-
-    this.physics.add.overlap(this.player, this.door, () => {
-      if (this.keysCollected >= this.totalKeys) this.handleWin();
+    // Steuerung
+    this.keys = this.input.keyboard.addKeys({
+      left:"LEFT", right:"RIGHT", up:"UP", down:"DOWN",
+      a:"A", d:"D", w:"W", s:"S", e:"E", esc:"ESC"
     });
 
-    // ----- „Mutter“-Punkt (M) -----
-    // Ein einfacher Marker in der Welt; bei Berührung kommt eine Meldung im HUD.
-    this.mother = this.add.circle(1800, 700, 22, 0xffc0cb).setDepth(5);
-    this.mLabel = this.add.text(this.mother.x, this.mother.y - 36, "M", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "28px",
-      color: "#ffffff",
-      stroke: "#000",
-      strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(5);
+    // ESC → Menü
+    this.add.text(16, this.scale.height-10, "⟵ Menü (ESC)",
+      { fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff",
+        stroke:"#000", strokeThickness:3 })
+      .setScrollFactor(0).setOrigin(0,1).setDepth(2000);
+    this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
 
-    this.physics.add.existing(this.mother, true); // static body
-    this.physics.add.overlap(this.player, this.mother, () => this.reachedMother());
-
-    // Status-Flags
-    this._motherMsgShown = false;
-    this._lastVelMag = 0;
+    if (DEBUG){
+      this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0);
+    }
   }
 
-  // ================= UI / Frame =================
-  makeUIFrame() {
+  // ====== Interaktionen ======
+  talkTo(npc){
+    if (!this.keys.e.isDown) return;
+    const id = npc.getData("id");
+
+    if (id === "mom" && !this.haveMomKey){
+      this.haveMomKey = true;
+      this.showInfo("Mama: Schlüssel erhalten! → Tür D ist nun offen.");
+      this.openDoor("door1");                  // D auf
+    } else if (id === "dad" && !this.haveDadKey){
+      this.haveDadKey = true;
+      this.showInfo("Papa: Schlüssel erhalten! → Tür E ist nun offen.");
+      this.openDoor("door2");                  // E auf
+    } else {
+      this.showInfo(npc.getData("line"));
+    }
+    this.updateUI();
+  }
+
+  openDoor(id){
+    this.doors.children.iterate(d=>{
+      if (d.getData("id")===id && d.getData("locked")){
+        d.setTexture("door_open");
+        d.setData("locked", false);
+        d.disableBody(true, true);                 // keine Kollision mehr
+        // Deko an gleicher Stelle (optische “offene Tür”)
+        this.add.image(d.x, d.y, "door_open").setDepth(-4);
+      }
+    });
+  }
+
+  tryFinish(){
+    if (this.haveMomKey && this.haveDadKey){
+      this.win();
+    } else {
+      this.showInfo("Die Ausgangstür öffnet sich erst mit beiden Schlüsseln.");
+    }
+  }
+
+  // ====== Update / Bewegung ======
+  update(){
+    if (!this.player) return;
+
+    const speed = 300;
+    const ix = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
+               (this.keys.right.isDown|| this.keys.d.isDown ?  1 : 0);
+    const iy = (this.keys.up.isDown   || this.keys.w.isDown ? -1 : 0) +
+               (this.keys.down.isDown || this.keys.s.isDown ?  1 : 0);
+
+    this.player.body.setAcceleration(ix*speed*2, iy*speed*2);
+
+    if (ix!==0 || iy!==0){
+      if (this.textures.exists("diver")) this.player.play("diver_swim", true);
+      if (ix < 0)      this.player.setFlipX(false);
+      else if (ix > 0) this.player.setFlipX(true);
+
+      // falls eine Info eingeblendet ist: schneller ausblenden beim Los-Schwimmen
+      if (this.ui && this.ui._info && this.ui._info.alpha > 0){
+        this.tweens.killTweensOf(this.ui._info);
+        this.tweens.add({ targets: this.ui._info, alpha: 0, duration: 160 });
+      }
+    } else {
+      this.player.body.setAcceleration(0,0);
+      if (this.textures.exists("diver")) this.player.play("diver_idle", true);
+    }
+  }
+
+  // ====== HUD / UI (Frame oben rechts) ======
+  makeUIFrame(){
     const pad = 16;
     const frameW = 260;
-    const frameH = 110;
+    const frameH = 120;
 
-    // Container fix am Bildschirm (scrollFactor 0) + hohe Depth
-    const ui = this.add.container(0, 0).setScrollFactor(0).setDepth(1000);
+    const ui = this.add.container(0,0).setScrollFactor(0).setDepth(3000);
 
-    // Hintergrund + Rahmen
-    const bg = this.add.rectangle(0, 0, frameW, frameH, 0x0d2e46, 0.92).setOrigin(1, 0);
-    const border = this.add.rectangle(0, 0, frameW, frameH).setOrigin(1, 0)
+    const bg = this.add.rectangle(0,0, frameW, frameH, 0x0d2e46, 0.92).setOrigin(1,0);
+    const border = this.add.rectangle(0,0, frameW, frameH).setOrigin(1,0)
       .setStrokeStyle(2, 0x134062, 1);
 
-    // Titelzeile (optional)
     const title = this.add.text(-frameW + 12, 8, "Level 2", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
-      color: "#cfe9ff",
-      stroke: "#000",
-      strokeThickness: 2,
+      fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#cfe9ff",
+      stroke:"#000", strokeThickness:2
     });
 
     // O2-Balken
-    const barX = -frameW + 12, barY = 34;
+    const barX = -frameW + 12, barY = 36;
     const barW = frameW - 24, barH = 16;
-    const o2bg = this.add.rectangle(barX, barY, barW, barH, 0x003654).setOrigin(0, 0);
-    const o2fg = this.add.rectangle(barX + 2, barY + 2, barW - 4, barH - 4, 0x00aaff).setOrigin(0, 0);
+    const o2bg = this.add.rectangle(barX, barY, barW, barH, 0x003654).setOrigin(0,0);
+    const o2fg = this.add.rectangle(barX+2, barY+2, barW-4, barH-4, 0x00aaff).setOrigin(0,0);
 
-    // O2-Text + Keys
-    const o2text = this.add.text(barX, barY + 22, "O₂: 100", {
-      fontFamily: "monospace",
-      fontSize: "16px",
-      color: "#cfe9ff",
-    });
-    const keysText = this.add.text(barX, barY + 42, "Keys: 0/2", {
-      fontFamily: "monospace",
-      fontSize: "16px",
-      color: "#ffe66d",
-    });
+    const o2text  = this.add.text(barX, barY + 22, "O₂: --", { fontFamily:"monospace", fontSize:"16px", color:"#cfe9ff" });
+    const keysTxt = this.add.text(barX, barY + 42, "Keys: –/–", { fontFamily:"monospace", fontSize:"16px", color:"#ffe66d" });
 
-    // Info/Mutter-Meldung (erscheint im selben Frame, oben rechts)
+    // Info (Meldungen)
     const info = this.add.text(-12, 8, "", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
-      color: "#a7f5a1",
-      align: "right",
-      wordWrap: { width: frameW - 24 },
-      stroke: "#000",
-      strokeThickness: 2,
-    }).setOrigin(1, 0).setAlpha(0);
+      fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#a7f5a1",
+      align:"right", wordWrap:{ width: frameW-24 }, stroke:"#000", strokeThickness:2
+    }).setOrigin(1,0).setAlpha(0);
 
-    ui.add([bg, border, title, o2bg, o2fg, o2text, keysText, info]);
+    ui.add([bg, border, title, o2bg, o2fg, o2text, keysTxt, info]);
 
-    // Speichern für später
     ui._pad = pad;
     ui._frameW = frameW;
-    ui._frameH = frameH;
     ui._o2fg = o2fg;
     ui._o2bgW = barW - 4;
     ui._o2text = o2text;
-    ui._keys = keysText;
+    ui._keys = keysTxt;
     ui._info = info;
 
-    // Positionieren (oben rechts)
     this.repositionUIFrame(ui);
-
     return ui;
   }
 
-  repositionUIFrame(ui = this.ui) {
+  repositionUIFrame(ui = this.ui){
     if (!ui) return;
     const pad = ui._pad ?? 16;
     ui.x = this.scale.width - pad;
     ui.y = pad;
   }
 
-  updateUI() {
+  updateUI(){
     if (!this.ui) return;
-    // O2-Balkenbreite
-    const ratio = Phaser.Math.Clamp(this.oxygen / this.maxOxygen, 0, 1);
+    // O2
+    const ratio = Phaser.Math.Clamp(this.oxygen / this.oxygenMax, 0, 1);
     this.ui._o2fg.width = 2 + this.ui._o2bgW * ratio;
-    // Texte
     this.ui._o2text.setText(`O₂: ${this.oxygen}`);
-    this.ui._keys.setText(`Keys: ${this.keysCollected}/${this.totalKeys}`);
+
+    // Keys
+    const a = this.haveMomKey ? "✓" : "–";
+    const b = this.haveDadKey ? "✓" : "–";
+    this.ui._keys.setText(`Keys: ${a} / ${b}`);
   }
 
-  showInfo(msg, fadeDelay = 1600) {
+  showInfo(msg, holdMs = 1500){
     if (!this.ui) return;
     const t = this.ui._info;
     t.setText(msg);
     this.tweens.killTweensOf(t);
     t.setAlpha(0);
     this.tweens.add({
-      targets: t,
-      alpha: 1,
-      duration: 120,
-      ease: "Quad.easeOut",
+      targets: t, alpha: 1, duration: 120, ease: "Quad.easeOut",
       onComplete: () => {
-        this.tweens.add({
-          targets: t,
-          alpha: 0,
-          delay: fadeDelay,
-          duration: 220,
-          ease: "Quad.easeIn",
-        });
-      },
+        this.tweens.add({ targets: t, alpha: 0, delay: holdMs, duration: 220, ease: "Quad.easeIn" });
+      }
     });
   }
 
-  // ================= Schlüssel / Mutter =================
-  tryPickKey(sprite) {
-    if (!sprite.active) return;
-    if (Phaser.Input.Keyboard.JustDown(this.eKey)) {
-      sprite.disableBody(true, true);
-      this.keysCollected++;
-      this.updateUI();
-      this.showInfo("Schlüssel eingesammelt! (E)");
-    } else {
-      this.showInfo("Drücke E zum Aufheben", 900);
-    }
+  // ====== Enden / Panels ======
+  win(){
+    if (this.gameOver) return;
+    this.gameOver = true;
+    this.physics.world.pause();
+    this.player.body.setVelocity(0,0);
+    if (this.textures.exists("diver")) this.player.play("diver_idle");
+    this.showEndPanel("Level geschafft! 🎉");
   }
 
-  reachedMother() {
-    if (this._motherMsgShown) return;
-    this._motherMsgShown = true;
-
-    // Meldung im HUD-Frame (oben rechts)
-    this.showInfo("Du hast Mama gefunden! 💬");
-
-    // Beobachte Bewegung und blende die Meldung schneller aus, wenn man weiter schwimmt
-    const check = this.time.addEvent({
-      delay: 150,
-      loop: true,
-      callback: () => {
-        const v = this.player.body ? this.player.body.velocity : { x: 0, y: 0 };
-        const mag = Math.hypot(v.x, v.y);
-        if (mag > 40) {
-          // Sofort ausblenden
-          if (this.ui && this.ui._info) {
-            this.tweens.killTweensOf(this.ui._info);
-            this.tweens.add({ targets: this.ui._info, alpha: 0, duration: 160 });
-          }
-          check.remove(false);
-        }
-      },
-    });
+  fail(msg){
+    if (this.gameOver) return;
+    this.gameOver = true;
+    this.physics.world.pause();
+    this.player.body.setVelocity(0,0);
+    this.showEndPanel(msg || "Game Over");
   }
 
-  // ================= Ablauf / Ende =================
-  update() {
-    const speed = 220; // etwas moderater Speed
-    this.player.setVelocity(0);
+  showEndPanel(title){
+    const W=this.scale.width, H=this.scale.height;
+    const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0).setDepth(3000);
+    const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0).setDepth(3001);
+    this.add.text(W/2,H/2-90,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
+      stroke:"#000", strokeThickness:4 })
+      .setOrigin(0.5).setScrollFactor(0).setDepth(3002);
 
-    if (this.cursors.left.isDown) this.player.setVelocityX(-speed);
-    else if (this.cursors.right.isDown) this.player.setVelocityX(speed);
-
-    if (this.cursors.up.isDown) this.player.setVelocityY(-speed);
-    else if (this.cursors.down.isDown) this.player.setVelocityY(speed);
+    const makeBtn = (txt, y, onClick)=>{
+      const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(3002).setInteractive({ useHandCursor:true });
+      const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff",
+        stroke:"#000", strokeThickness:3 }).setOrigin(0.5).setScrollFactor(0).setDepth(3003);
+      r.on("pointerover", ()=>r.setFillStyle(0x134062,1));
+      r.on("pointerout",  ()=>r.setFillStyle(0x0d2e46,1));
+      r.on("pointerdown", ()=>{ onClick(); dim.destroy(); panel.destroy(); r.destroy(); t.destroy(); });
+    };
+    makeBtn("Nochmal",  H/2+10, ()=> this.scene.restart());
+    makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
   }
 
-  handleDrown() {
-    if (this._ended) return;
-    this._ended = true;
-    this.physics.pause();
-    this.add
-      .text(this.scale.width / 2, this.scale.height / 2, "Game Over\n(ESC → Menü)", {
-        fontFamily: "sans-serif",
-        fontSize: "48px",
-        color: "#ff6b6b",
-        align: "center",
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(2000);
+  // ====== Helpers / Assets ======
+  makeSimpleTextures(){
+    const g = this.add.graphics();
+    const t = this.TILE;
+    // floor
+    g.clear(); g.fillStyle(0x06202c, 1); g.fillRect(0,0,t,t); g.generateTexture("floor", t, t);
+    // wall
+    g.clear(); g.fillStyle(0x0b3a4e, 1); g.fillRect(0,0,t,t);
+    g.lineStyle(4, 0x0f5776, 0.9); g.strokeRect(2,2,t-4,t-4);
+    g.generateTexture("wall", t, t);
+    // doors
+    g.clear(); g.fillStyle(0x1a5c3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door1", t, t);
+    g.clear(); g.fillStyle(0x5c1a3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door2", t, t);
+    g.clear(); g.fillStyle(0x123a20, 1); g.fillRect(0,0,t,t);
+    g.lineStyle(6, 0x1eff7e, 0.9); g.strokeRect(8,8,t-16,t-16); g.generateTexture("door_open", t, t);
+    // exit
+    g.clear(); g.fillStyle(0x274b63, 1); g.fillRect(0,0,t,t);
+    g.lineStyle(6, 0xffffff, 0.9); g.strokeRect(10,10,t-20,t-20); g.generateTexture("exit", t, t);
+    // NPC-Icons
+    g.clear(); g.fillStyle(0xffe08a, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("mom", t, t);
+    g.clear(); g.fillStyle(0x9ad0ff, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("dad", t, t);
+    // Fallback Player
+    g.clear(); g.fillStyle(0xffffff, 1); g.fillRect(0,0,48,32); g.generateTexture("player", 48, 32);
+    g.destroy();
   }
 
-  handleWin() {
-    if (this._ended) return;
-    this._ended = true;
-    this.physics.pause();
-    this.add
-      .text(this.scale.width / 2, this.scale.height / 2, "Geschafft!\n(ESC → Menü)", {
-        fontFamily: "sans-serif",
-        fontSize: "48px",
-        color: "#51cf66",
-        align: "center",
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(2000);
+  updateBodySize(){
+    // schmalere Hitbox, damit man besser durch enge Gänge passt
+    const bw=this.player.displayWidth*0.38, bh=this.player.displayHeight*0.52;
+    this.player.body.setSize(bw,bh);
+    this.player.body.setOffset(
+      (this.player.displayWidth  - bw)/2,
+      (this.player.displayHeight - bh)/2
+    );
   }
 }
 
