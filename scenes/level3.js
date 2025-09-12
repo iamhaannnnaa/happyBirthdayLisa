@@ -29,6 +29,9 @@ export default class Level3 extends Phaser.Scene {
   create(){
     console.log("[Level3] geladen:", L3_VERSION);
 
+    this.introKey = "l3_intro_seen_v1";
+
+
     // --- Welt & Kamera ---
     this.WORLD_W = 5000;
     this.WORLD_H = 3800;
@@ -161,7 +164,30 @@ this.physics.add.collider(this.player, this.sharks);
 
     // --- Foto-Overlay (zentral, garantiert sichtbar) ---
     this.photoOverlay = this.makePhotoOverlay();
+    const introAlreadySeen = localStorage.getItem(this.introKey) === "1";
+if (!introAlreadySeen) {
+  this.introOverlay = this.makeIntroOverlay();
+  this.introOverlay.setVisible(true).setAlpha(1);
+
+  // Steuerung blockieren solange das Intro offen ist
+  this.bookOpen = true;
+  this.physics.world.pause();
+  this.player.setVelocity(0,0);
+
+  // Schließen mit [SPACE]
+  this.input.keyboard.once("keydown-SPACE", () => {
+    this.introOverlay.setVisible(false);
+    this.bookOpen = false;
+    this.physics.world.resume();
+
+    // >>> Flag dauerhaft setzen
+    try { localStorage.setItem(this.introKey, "1"); } catch(e) {}
+  });
+}
+
   }
+
+  
 
   // ================= Update =================
   update(){
@@ -486,11 +512,11 @@ this.physics.add.collider(this.player, this.sharks);
       this.bookBtn._label.setPosition(x, y);
     }
     // Foto-Overlay mittig & Größe aktualisieren
-    if (this.photoOverlay){
+    if (erlay){
       this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
       if (this.photoOverlay._dim){
-        this.photoOverlay._dim.width  = this.scale.width;
-        this.photoOverlay._dim.height = this.scale.height;
+        erlay._dim.width  = this.scale.width;
+        erlay._dim.height = this.scale.height;
       }
     }
   }
@@ -674,6 +700,55 @@ this.physics.add.collider(this.player, this.sharks);
     cont._text = txt;
     return cont;
   }
+
+  makeIntroOverlay(){
+  const W = this.scale.width, H = this.scale.height;
+
+  const cont = this.add.container(W/2, H/2)
+    .setScrollFactor(0)
+    .setDepth(25000)
+    .setVisible(false)
+    .setAlpha(0);
+
+  const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0.5);
+
+  const panelW = Math.min(720, W*0.9);
+  const panelH = Math.min(460, H*0.85);
+  const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
+  panel.setStrokeStyle(4, 0xaad4ff, 1);
+
+  const story =
+`Willkommen im offenen Meer!
+Du bist eine Forscherin auf einer besonderen Mission:
+**Alle Haie der Region zu entdecken und zu fotografieren.**
+
+Anders als sonst brauchst du keinen Käfig – dein Mut und deine Kamera reichen völlig aus.
+
+**So funktioniert es:**
+- Mit den Pfeiltasten oder [WASD] steuerst du deine Taucherin.
+- Drücke [LEERTASTE], um ein Foto zu machen.
+- Mit [B] öffnest du dein Logbuch und siehst deinen Fortschritt.
+
+Deine Aufgabe:
+Finde alle Arten von Haien, fotografiere sie und hake deine Liste ab.
+
+Drücke [SPACE], um deine Reise zu beginnen!`;
+
+  const txt = this.add.text(0, 0, story, {
+    fontFamily:"system-ui, sans-serif",
+    fontSize:"20px",
+    color:"#103a5c",
+    align:"left",
+    wordWrap: { width: panelW - 60 }
+  }).setOrigin(0.5);
+
+  cont.add([dim, panel, txt]);
+  cont.setAlpha(1);
+  cont._dim = dim; // für Resize
+  cont._panel = panel;
+  return cont;
+}
+
 
   showPhotoOverlay(lines){
     const cont = this.photoOverlay;
