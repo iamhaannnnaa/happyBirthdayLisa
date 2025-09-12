@@ -225,67 +225,82 @@ export default class Level3 extends Phaser.Scene {
     }
   }
 
+  getPhotoRect(){
+  // Weltkoordinaten des Fotofensters
+  return new Phaser.Geom.Rectangle(
+    this.photoFrame.x - this.frameW/2,
+    this.photoFrame.y - this.frameH/2,
+    this.frameW,
+    this.frameH
+  );
+}
+
+
   // ================= Foto-Logik =================
-  takePhoto(){
-    const now = this.time.now || performance.now();
-    if (now - this.lastShotAt < 500) return; // kurzer Cooldown
-    this.lastShotAt = now;
+ takePhoto(){
+  const now = this.time.now || performance.now();
+  if (now - this.lastShotAt < 500) return; // kurzer Cooldown
+  this.lastShotAt = now;
 
-    // Blitz (HUD)
-    this.flash.setAlpha(0.8);
-    this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
+  // Blitz (HUD)
+  this.flash.setAlpha(0.8);
+  this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
 
-    // Frame-Grenzen (der Frame hängt an der Taucherin)
-    const left   = this.photoFrame.x - this.frameW/2;
-    const right  = this.photoFrame.x + this.frameW/2;
-    const top    = this.photoFrame.y - this.frameH/2;
-    const bottom = this.photoFrame.y + this.frameH/2;
+  // Rechteck des Foto-Frames
+  const photoRect = this.getPhotoRect();
 
-    // Alle Haie, die JETZT im Frame sind (nur dieser Moment zählt)
-    const inFrame = [];
-    this.sharks.children.iterate(s=>{
-      if (!s) return;
-      if (s.x >= left && s.x <= right && s.y >= top && s.y <= bottom) inFrame.push(s);
-    });
-
-    if (inFrame.length === 0){
-      this.showPhotoOverlay(["Kein Hai im Bild"]);
-      return;
+  // Alle Haie, deren sichtbare Bounds das Foto-Rechteck schneiden
+  const inFrame = [];
+  const sharks = this.sharks.getChildren(); // zuverlässiger als children.iterate
+  for (let i=0;i<sharks.length;i++){
+    const s = sharks[i];
+    if (!s || !s.active || !s.visible) continue;
+    // getBounds berücksichtigt Scale/Flip und benutzt Weltkoordinaten
+    const sb = s.getBounds();
+    if (Phaser.Geom.Rectangle.Overlaps(photoRect, sb)) {
+      inFrame.push(s);
     }
-
-    // Pro Art nur einmal zählen (falls mehrere gleiche im Frame sind)
-    const seen = new Set();
-    const newCaught = [];
-    const already   = [];
-    for (const s of inFrame){
-      const id = s.getData("id");
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const name = s.getData("name");
-      if (!this.dex.caught[id]) {
-        this.dex.caught[id] = true;
-        newCaught.push(name);
-      } else {
-        already.push(name);
-      }
-    }
-
-    // Fortschritt speichern/anzeigen
-    if (newCaught.length > 0){
-      this.saveDex();
-      this.updateHud();
-      if (this.bookOpen) this.refreshBook();
-    }
-
-    // Meldungen im Overlay
-    const msgs = [];
-    for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
-    if (newCaught.length === 0){
-      for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
-      if (already.length === 0) msgs.push("Kein Hai im Bild");
-    }
-    this.showPhotoOverlay(msgs);
   }
+
+  if (inFrame.length === 0){
+    this.showPhotoOverlay(["Kein Hai im Bild"]);
+    return;
+  }
+
+  // Pro Art nur einmal zählen (falls mehrere gleiche im Frame sind)
+  const seen = new Set();
+  const newCaught = [];
+  const already   = [];
+  for (const s of inFrame){
+    const id = s.getData("id");
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const name = s.getData("name");
+    if (!this.dex.caught[id]) {
+      this.dex.caught[id] = true;
+      newCaught.push(name);
+    } else {
+      already.push(name);
+    }
+  }
+
+  // Fortschritt speichern/anzeigen
+  if (newCaught.length > 0){
+    this.saveDex();
+    this.updateHud();
+    if (this.bookOpen) this.refreshBook();
+  }
+
+  // Meldungen im Overlay
+  const msgs = [];
+  for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
+  if (newCaught.length === 0){
+    for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
+    if (already.length === 0) msgs.push("Kein Hai im Bild");
+  }
+  this.showPhotoOverlay(msgs);
+}
+
 
   // ================= UI / HUD =================
   updateHud(){

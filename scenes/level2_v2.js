@@ -4,7 +4,7 @@ const DEBUG = false;
 
 /* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
 (function () {
-  var VERSION = "L2-2025-09-12-uiCamera-topcenter-hud-solid-npcs";
+  var VERSION = "L2-2025-09-12-topcenter-hud-solid-npcs-no-extra-cams";
   var now = new Date().toISOString();
   var url = "(unknown)";
   try {
@@ -42,7 +42,7 @@ export default class Level2 extends Phaser.Scene {
         frameWidth:480, frameHeight:480, endFrame:15
       });
     }
-    // Wand-/Bodenbilder (optional). Wenn nicht da, baut makeSimpleTextures Fallbacks.
+    // Wände/Boden (optional). Falls fehlen, baut makeSimpleTextures Fallbacks.
     if (!this.textures.exists("wall")){
       this.load.image("wall", "assets/objects/mauer.png");
     }
@@ -57,10 +57,6 @@ export default class Level2 extends Phaser.Scene {
     const CAM_ZOOM     = 1.5;
     const PLAYER_SCALE = 0.18;
     this.TILE = TILE;
-
-    // ------- Welt-Layer (alles Sichtbare der Welt hier rein) & UI-Layer -------
-    this.worldLayer = this.add.layer().setDepth(0);       // Welt-Objekte
-    this.uiLayer    = this.add.layer().setDepth(10000);   // HUD/Meldungen
 
     // ------- Labyrinth -------
     const MAP = [
@@ -91,7 +87,7 @@ export default class Level2 extends Phaser.Scene {
     this.cameras.main.setRoundPixels(true);
     this.cameras.main.setZoom(CAM_ZOOM);
 
-    // Platzhalter-Texturen/Fallbacks anlegen
+    // Fallback-Texturen erzeugen, falls Assets fehlen
     this.makeSimpleTextures();
 
     // Gruppen
@@ -108,10 +104,9 @@ export default class Level2 extends Phaser.Scene {
         const px = x*TILE + TILE/2;
         const py = y*TILE + TILE/2;
 
-        // Boden-Quad
+        // Boden (hinter alles)
         const f = this.add.image(px, py, "floor").setDepth(-5);
         f.setDisplaySize(this.TILE, this.TILE);
-        this.worldLayer.add(f);
 
         if (ch === "#"){
           const w = this.walls.create(px, py, "wall");
@@ -122,7 +117,6 @@ export default class Level2 extends Phaser.Scene {
             w.body.setOffset(-this.TILE/2 + w.displayOriginX, -this.TILE/2 + w.displayOriginY);
           }
           w.refreshBody();
-          this.worldLayer.add(w);
         } else if (ch === "S"){
           startX = px; startY = py;
         } else if (ch === "M"){
@@ -134,9 +128,8 @@ export default class Level2 extends Phaser.Scene {
             n.body.setOffset(-this.TILE/2 + n.displayOriginX, -this.TILE/2 + n.displayOriginY);
           }
           n.refreshBody();
-          this.worldLayer.add(n);
         } else if (ch === "F"){
-          const n = this.npcs.create(px, py, "dad").setData("id","dad"); // <- FIX: create (nicht .e)
+          const n = this.npcs.create(px, py, "dad").setData("id","dad");
           n.setData("gaveKey", false);
           n.setDisplaySize(this.TILE, this.TILE);
           if (n.body){
@@ -144,19 +137,15 @@ export default class Level2 extends Phaser.Scene {
             n.body.setOffset(-this.TILE/2 + n.displayOriginX, -this.TILE/2 + n.displayOriginY);
           }
           n.refreshBody();
-          this.worldLayer.add(n);
         } else if (ch === "D"){
           const d = this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
           d.refreshBody();
-          this.worldLayer.add(d);
         } else if (ch === "E"){
           const d = this.doors.create(px, py, "door2").setData("id","door2").setData("locked", true);
           d.refreshBody();
-          this.worldLayer.add(d);
         } else if (ch === "X"){
           const ex = this.exit.create(px, py, "exit");
           ex.refreshBody();
-          this.worldLayer.add(ex);
         }
       }
     }
@@ -186,7 +175,6 @@ export default class Level2 extends Phaser.Scene {
     this.player.body.setMaxVelocity(320,320);
     this.updateBodySize();
     this.player.setFlipX(true);
-    this.worldLayer.add(this.player);
 
     // Animationen
     if (this.textures.exists("diver")){
@@ -212,28 +200,21 @@ export default class Level2 extends Phaser.Scene {
     this.oxygenMax  = 40;
     this.oxygen     = this.oxygenMax;
 
-    // ------- HUD (oben mittig) + ESC-Label in UI-Layer -------
-    this.ui = this.makeUIFrameTopCenter();
-    this.ui.setScrollFactor(0);
-    this.uiLayer.add(this.ui);
+    // ------- HUD oben mittig (fix) -------
+    this.ui = this.makeUIFrameTopCenter()
+      .setDepth(10000)             // ganz nach oben
+      .setScrollFactor(0);         // Kamera-unabhängig
+    this.children.bringToTop(this.ui);
+    this.updateUI();
 
+    // ESC-Label (auch fix)
     const escTxt = this.add.text(16, this.scale.height-10, "⟵ Menü (ESC)", {
       fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff",
       stroke:"#000", strokeThickness:3
-    }).setScrollFactor(0).setOrigin(0,1);
-    this.uiLayer.add(escTxt);
+    }).setOrigin(0,1).setScrollFactor(0).setDepth(10000);
 
-    this.updateUI();
-
-    // ------- UI-Kamera separat (nicht zoomen, immer oben) -------
-    this.cameras.main.ignore(this.uiLayer);                    // Hauptcam rendert NICHT die UI
-    this.uiCam = this.cameras.add(0, 0, this.scale.width, this.scale.height);
-    this.uiCam.setScroll(0,0).setZoom(1).setBackgroundColor(null);
-    this.uiCam.ignore(this.worldLayer);                        // UI-Cam rendert NUR die UI
-
-    // Auf Resize reagieren (UI-Cam + Frame mittig halten)
+    // Auf Resize HUD korrekt neu positionieren
     this.scale.on("resize", (gameSize)=>{
-      this.uiCam.setSize(gameSize.width, gameSize.height);
       this.repositionUIFrame();
       escTxt.setPosition(16, this.scale.height-10);
     });
@@ -272,8 +253,7 @@ export default class Level2 extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
 
     if (DEBUG){
-      const dbg = this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0);
-      this.uiLayer.add(dbg);
+      this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0).setDepth(10000);
     }
   }
 
@@ -309,9 +289,7 @@ export default class Level2 extends Phaser.Scene {
         d.setTexture("door_open");
         d.setData("locked", false);
         d.disableBody(true, true);
-        const deco = this.add.image(d.x, d.y, "door_open");
-        deco.setDepth(-4);
-        this.worldLayer.add(deco);
+        this.add.image(d.x, d.y, "door_open").setDepth(-4);
       }
     });
   }
@@ -340,6 +318,7 @@ export default class Level2 extends Phaser.Scene {
       if (this.textures.exists("diver")) this.player.play("diver_swim", true);
       if (ix < 0)      this.player.setFlipX(false);
       else if (ix > 0) this.player.setFlipX(true);
+
       // Info schneller weg beim Bewegen
       if (this.ui && this.ui._info && this.ui._info.alpha > 0){
         this.tweens.killTweensOf(this.ui._info);
@@ -447,22 +426,19 @@ export default class Level2 extends Phaser.Scene {
 
   showEndPanel(title){
     const W=this.scale.width, H=this.scale.height;
-    // Die Endpanels gehören ebenfalls in die UI (sonst zoomen sie mit)
-    const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0);
-    const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0);
-    const ttl   = this.add.text(W/2,H/2-90,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
-      stroke:"#000", strokeThickness:4 }).setOrigin(0.5).setScrollFactor(0);
+    const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0).setDepth(10000);
+    const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0).setDepth(10001);
+    this.add.text(W/2,H/2-90,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
+      stroke:"#000", strokeThickness:4 }).setOrigin(0.5).setScrollFactor(0).setDepth(10002);
 
     const makeBtn = (txt, y, onClick)=>{
-      const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setInteractive({ useHandCursor:true });
-      const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff", stroke:"#000", strokeThickness:3 }).setOrigin(0.5).setScrollFactor(0);
+      const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(10002).setInteractive({ useHandCursor:true });
+      const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff", stroke:"#000", strokeThickness:3 })
+        .setOrigin(0.5).setScrollFactor(0).setDepth(10003);
       r.on("pointerover", ()=>r.setFillStyle(0x134062,1));
       r.on("pointerout",  ()=>r.setFillStyle(0x0d2e46,1));
-      r.on("pointerdown", ()=>{ onClick(); dim.destroy(); panel.destroy(); r.destroy(); t.destroy(); ttl.destroy(); });
-      this.uiLayer.add(r); this.uiLayer.add(t);
+      r.on("pointerdown", ()=>{ onClick(); dim.destroy(); panel.destroy(); r.destroy(); t.destroy(); });
     };
-    this.uiLayer.add(dim); this.uiLayer.add(panel); this.uiLayer.add(ttl);
-
     makeBtn("Nochmal",  H/2+10, ()=> this.scene.restart());
     makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
   }
@@ -522,6 +498,7 @@ export default class Level2 extends Phaser.Scene {
     }
   }
 }
+
 
 
 
