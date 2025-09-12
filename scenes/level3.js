@@ -91,29 +91,33 @@ export default class Level3 extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
     this.input.keyboard.addCapture(['SPACE', 'P']); // <-- wichtig
 
-// --- Haie spawnen: PNG falls vorhanden, sonst Fallback-Kreis ---
+// --- Haie spawnen: weniger, aber mind. 1 pro Art ---
 this.sharks = this.physics.add.group();
-const perSpecies = 6;
-for (const s of this.SPECIES){
-  for (let i=0;i<perSpecies;i++){
-    const x = 200 + Math.random()*(this.WORLD_W-400);
-    const y = 200 + Math.random()*(this.WORLD_H-400);
 
-    const texKey = this.textures.exists(s.tex) ? s.tex : ("dot_big_"+s.id);
+// Anzahl: 1–2 pro Art (mindestens einer)
+for (const s of this.SPECIES){
+  const count = Phaser.Math.Between(1, 3); // min=1, max=2
+  for (let i = 0; i < count; i++) {
+    // Größere Suchfläche (keine 200px Ränder mehr, nur kleine Polster)
+    const x = 80 + Math.random()*(this.WORLD_W - 160);
+    const y = 80 + Math.random()*(this.WORLD_H - 160);
+
+    const texKey = this.textures.exists(s.tex) ? s.tex : ("dot_big_" + s.id);
     const spr = this.createSharkSprite(x, y, texKey);
 
-    // <<< WICHTIG: dem Group hinzufügen >>>
     this.sharks.add(spr);
 
     spr.setData("id", s.id);
     spr.setData("name", s.name);
     spr.setData("color", s.color);
 
-    this.assignRandomVelocity(spr, Phaser.Math.Between(40, 90));
-    this.scheduleWander(spr, 1200, 2600);
+    this.assignRandomVelocity(spr, Phaser.Math.Between(50, 100));
+    this.scheduleWander(spr, 1800, 3200); // größere Pausen, weniger wuselig
   }
 }
+
 this.physics.add.collider(this.player, this.sharks);
+
 
 
     // --- Foto-Frame an Spieler koppeln ---
