@@ -20,7 +20,7 @@ export default class Level3 extends Phaser.Scene {
     this.load.image("shark_bull",        base + "bullenhai.png");
     this.load.image("shark_thresher",    base + "Fuchshai.png");
     this.load.image("shark_whale",       base + "Walhai.png");
-    this.load.image("shark_blacktip",    base + "Schwarzspitzenhai.png");// prüf ggf. exakten Namen
+    this.load.image("shark_blacktip",    base + "Schwarzspitzen.png");// prüf ggf. exakten Namen
     this.load.image("shark_mako",        base + "makohai.png");
     this.load.image("shark_blue",        base + "blauhai.png");
     this.load.image("shark_zebra",       base + "zebrahai.png");
@@ -533,54 +533,88 @@ createSharkSprite(x, y, key){
   // ===== Tile-Generatoren: nahtlose Wasser-Texturen =====
   makeSeamlessDotsTexture(key, size, opts = {}){
   if (this.textures.exists(key)) return;
+
+  // <-- wichtig: Optionen sauber herausziehen (mit Defaults)
+  const {
+    bg = 0x07263a,
+    dotColor = 0x0e4163,
+    dotAlpha = 0.10,
+    dotCount = 220,
+    dotMin = 1,
+    dotMax = 2
+  } = opts;
+
   const tex = this.textures.createCanvas(key, size, size);
   const ctx = tex.getContext();
-    ctx.fillStyle = `#${bg.toString(16).padStart(6,"0")}`;
-    ctx.fillRect(0,0,size,size);
-    const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
-    ctx.fillStyle = rgba(dotColor, dotAlpha);
-    for (let i=0;i<dotCount;i++){
-      const x = Math.random()*size, y = Math.random()*size;
-      const r = dotMin + Math.random()*(dotMax-dotMin);
-      for (const dx of [-size,0,size]) for (const dy of [-size,0,size]){
-        ctx.beginPath(); ctx.arc(x+dx, y+dy, r, 0, Math.PI*2); ctx.fill();
-      }
+
+  ctx.fillStyle = `#${bg.toString(16).padStart(6,"0")}`;
+  ctx.fillRect(0,0,size,size);
+
+  const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
+
+  ctx.fillStyle = rgba(dotColor, dotAlpha);
+  for (let i=0;i<dotCount;i++){
+    const x = Math.random()*size, y = Math.random()*size;
+    const r = dotMin + Math.random()*(dotMax-dotMin);
+    for (const dx of [-size,0,size]) for (const dy of [-size,0,size]){
+      ctx.beginPath(); ctx.arc(x+dx, y+dy, r, 0, Math.PI*2); ctx.fill();
     }
-    ctx.globalAlpha = 0.35;
-    ctx.drawImage(tex.getSourceImage(), -1, 0);
-    ctx.drawImage(tex.getSourceImage(), 1, 0);
-    ctx.drawImage(tex.getSourceImage(), 0, -1);
-    ctx.drawImage(tex.getSourceImage(), 0, 1);
-    ctx.globalAlpha = 1;
-    tex.refresh();
   }
 
- makeSeamlessBlobsTexture(key, size, opts = {}){
+  ctx.globalAlpha = 0.35;
+  ctx.drawImage(tex.getSourceImage(), -1, 0);
+  ctx.drawImage(tex.getSourceImage(),  1, 0);
+  ctx.drawImage(tex.getSourceImage(),  0,-1);
+  ctx.drawImage(tex.getSourceImage(),  0, 1);
+  ctx.globalAlpha = 1;
+
+  tex.refresh();
+}
+makeSeamlessBlobsTexture(key, size, opts = {}){
   if (this.textures.exists(key)) return;
+
+  // <-- wichtig: Optionen sauber herausziehen (mit Defaults)
+  const {
+    blobColor = 0x1a5b86,
+    blobAlpha = 0.08,
+    blobCount = 70,
+    minR = 16,
+    maxR = 60
+  } = opts;
+
   const tex = this.textures.createCanvas(key, size, size);
   const ctx = tex.getContext();
-    const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
-    ctx.clearRect(0,0,size,size);
-    for (let i=0;i<blobCount;i++){
-      const x = Math.random()*size, y = Math.random()*size;
-      const r = minR + Math.random()*(maxR-minR);
-      const drawBlob = (bx,by)=>{
-        const grad = ctx.createRadialGradient(bx,by, r*0.2, bx,by, r);
-        grad.addColorStop(0, rgba(blobColor, blobAlpha));
-        grad.addColorStop(1, rgba(blobColor, 0));
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI*2); ctx.fill();
-      };
-      for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) drawBlob(x+dx,y+dy);
-    }
-    ctx.globalAlpha = 0.06; ctx.fillStyle = rgba(0xffffff, 1);
-    for (let i=0;i<40;i++){
-      const x = Math.random()*size, y = Math.random()*size;
-      const w = 20+Math.random()*60, h = 2+Math.random()*3;
-      for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) ctx.fillRect(x+dx, y+dy, w, h);
-    }
-    ctx.globalAlpha = 1; tex.refresh();
+  const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
+
+  ctx.clearRect(0,0,size,size);
+
+  for (let i=0;i<blobCount;i++){
+    const x = Math.random()*size, y = Math.random()*size;
+    const r = minR + Math.random()*(maxR-minR);
+
+    const drawBlob = (bx,by)=>{
+      const grad = ctx.createRadialGradient(bx,by, r*0.2, bx,by, r);
+      grad.addColorStop(0, rgba(blobColor, blobAlpha));
+      grad.addColorStop(1, rgba(blobColor, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI*2); ctx.fill();
+    };
+
+    for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) drawBlob(x+dx,y+dy);
   }
+
+  ctx.globalAlpha = 0.06; ctx.fillStyle = rgba(0xffffff, 1);
+  for (let i=0;i<40;i++){
+    const x = Math.random()*size, y = Math.random()*size;
+    const w = 20+Math.random()*60, h = 2+Math.random()*3;
+    for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) ctx.fillRect(x+dx, y+dy, w, h);
+  }
+  ctx.globalAlpha = 1;
+
+  tex.refresh();
+}
+
+
 
   // ===== Unten-Toast (weiße Info) =====
 makeShotToast(){
