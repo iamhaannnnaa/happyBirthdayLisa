@@ -153,6 +153,12 @@ export default class Level3 extends Phaser.Scene {
 
     // Resize
     this.scale.on("resize", () => this.repositionUI());
+
+    // --- Weiße Shot-Toast-Meldung unten ---
+this.shotToast = this.makeShotToast();
+this.shotQueue = [];
+this.shotToastBusy = false;
+
   }
 
   // ================= Update =================
@@ -216,39 +222,69 @@ export default class Level3 extends Phaser.Scene {
   }
 
   // ================= Foto-Logik =================
-  takePhoto(){
-    const now = this.time.now || performance.now();
-    if (now - this.lastShotAt < 500) return; // kurzer cooldown
-    this.lastShotAt = now;
+// ================= Foto-Logik =================
+takePhoto(){
+  const now = this.time.now || performance.now();
+  if (now - this.lastShotAt < 500) return; // kurzer Cooldown
+  this.lastShotAt = now;
 
-    // Blitz
-    this.flash.setAlpha(0.8);
-    this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
+  // Blitz (HUD)
+  this.flash.setAlpha(0.8);
+  this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
 
-    // Frame-Grenzen in Weltkoordinaten (Frame hängt an der Taucherin)
-    const left   = this.photoFrame.x - this.frameW/2;
-    const right  = this.photoFrame.x + this.frameW/2;
-    const top    = this.photoFrame.y - this.frameH/2;
-    const bottom = this.photoFrame.y + this.frameH/2;
+  // Frame-Grenzen (der Frame hängt an der Taucherin)
+  const left   = this.photoFrame.x - this.frameW/2;
+  const right  = this.photoFrame.x + this.frameW/2;
+  const top    = this.photoFrame.y - this.frameH/2;
+  const bottom = this.photoFrame.y + this.frameH/2;
 
-    // Hai im Frame?
-    let target = null;
-    this.sharks.children.iterate(s=>{
-      if (!s) return;
-      if (s.x >= left && s.x <= right && s.y >= top && s.y <= bottom) { target = s; return false; }
-    });
-    if (!target) return;
+  // Alle Haie, die JETZT im Frame sind (nur dieser Moment zählt)
+  const inFrame = [];
+  this.sharks.children.iterate(s=>{
+    if (!s) return;
+    if (s.x >= left && s.x <= right && s.y >= top && s.y <= bottom) inFrame.push(s);
+  });
 
-    const id = target.getData("id");
-    const name = target.getData("name");
-    if (this.dex.caught[id]) return;
+  if (inFrame.length === 0){
+    this.showShotMessages(["Kein Hai im Bild"]);
+    return;
+  }
 
-    this.dex.caught[id] = true;
+  // Pro Art nur einmal zählen (falls mehrere gleiche im Frame sind)
+  const seen = new Set();
+  const newCaught = [];
+  const already   = [];
+  for (const s of inFrame){
+    const id = s.getData("id");
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const name = s.getData("name");
+    if (!this.dex.caught[id]) {
+      this.dex.caught[id] = true;
+      newCaught.push(name);
+    } else {
+      already.push(name);
+    }
+  }
+
+  // Fortschritt speichern/anzeigen
+  if (newCaught.length > 0){
     this.saveDex();
     this.updateHud();
     if (this.bookOpen) this.refreshBook();
-    this.showCapture(name);
   }
+
+  // Weiße Meldungen unten (nacheinander)
+  const msgs = [];
+  for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
+  if (newCaught.length === 0){
+    // keine neuen – zeig, was drin war
+    for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
+    if (already.length === 0) msgs.push("Kein Hai im Bild"); // theoretisch nicht erreichbar
+  }
+  this.showShotMessages(msgs);
+}
+
 
   // ================= UI / HUD =================
   updateHud(){
@@ -411,16 +447,21 @@ export default class Level3 extends Phaser.Scene {
     if (this.bookLayer) this.buildBookList(this.bookLayer);
   }
 
-  repositionUI(){
-    const pad = 16;
-    this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
-    if (this.bookBtn && this.bookBtn._label){
-      const x = this.scale.width - (110 + pad);
-      const y = this.scale.height - (40 + pad);
-      this.bookBtn.setPosition(x, y);
-      this.bookBtn._label.setPosition(x, y);
-    }
+ repositionUI(){
+  const pad = 16;
+  this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
+  if (this.bookBtn && this.bookBtn._label){
+    const x = this.scale.width - (110 + pad);
+    const y = this.scale.height - (40 + pad);
+    this.bookBtn.setPosition(x, y);
+    this.bookBtn._label.setPosition(x, y);
   }
+  // Toast unten neu ausrichten
+  if (this.shotToast){
+    this.shotToast.setPosition(this.scale.width/2, this.scale.height - (40 + pad));
+  }
+}
+
 
   // ================= Utils =================
   makeDiverAnimations(){
@@ -429,6 +470,8 @@ export default class Level3 extends Phaser.Scene {
       this.anims.create({ key:"diver_idle", frames:this.anims.generateFrameNumbers("diver",{start:0,end:1}), frameRate:2, repeat:-1 });
     }
   }
+
+  
 
   ensureBigDotTexture(key, color, size){
     if (this.textures.exists(key)) return;
@@ -442,27 +485,23 @@ export default class Level3 extends Phaser.Scene {
   }
 
   // === WICHTIG: PNG-Shark-Sprite erzeugen (Skalierung + Hitbox) ===
-  createSharkSprite(x, y, key){
-    const spr = this.physics.add.sprite(x, y, key);
+ // statt optional chaining auf Funktionsaufruf:
+createSharkSprite(x, y, key){
+  const spr = this.physics.add.sprite(x, y, key);
+  const tex = this.textures.get(key);
+  const img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
+  const targetH = 115;
+  const scale = (img && img.height) ? (targetH / img.height) : 1;
+  spr.setScale(scale);
 
-    // Zielhöhe ~ Taucherin (≈115 px)
-    const img = this.textures.get(key)?.getSourceImage?.();
-    const targetH = 115;
-    const scale = (img && img.height) ? (targetH / img.height) : 1;
-    spr.setScale(scale);
-
-    // Kollision: schmalere Box für PNGs, Kreis für Fallback
-    if (key.startsWith("shark_") && img){
-      spr.body.setSize(img.width * 0.55 * scale, img.height * 0.45 * scale, true);
-    } else {
-      spr.body.setCircle(50 * scale, 10 * scale, 10 * scale);
-    }
-
-    // Hinweis: PNGs am besten nach LINKS abspeichern. Falls ein Bild nach rechts schaut:
-    // spr.setFlipX(true);
-
-    return spr;
+  if (key.startsWith("shark_") && img){
+    spr.body.setSize(img.width * 0.55 * scale, img.height * 0.45 * scale, true);
+  } else {
+    spr.body.setCircle(50 * scale, 10 * scale, 10 * scale);
   }
+  return spr;
+}
+
 
   assignRandomVelocity(spr, speed){
     const ang = Math.random()*Math.PI*2;
@@ -492,10 +531,10 @@ export default class Level3 extends Phaser.Scene {
   }
 
   // ===== Tile-Generatoren: nahtlose Wasser-Texturen =====
-  makeSeamlessDotsTexture(key, size, { bg=0x07263a, dotColor=0x0e4163, dotAlpha=0.10, dotCount=220, dotMin=1, dotMax=2 } = {}){
-    if (this.textures.exists(key)) return;
-    const tex = this.textures.createCanvas(key, size, size);
-    const ctx = tex.getContext();
+  makeSeamlessDotsTexture(key, size, opts = {}){
+  if (this.textures.exists(key)) return;
+  const tex = this.textures.createCanvas(key, size, size);
+  const ctx = tex.getContext();
     ctx.fillStyle = `#${bg.toString(16).padStart(6,"0")}`;
     ctx.fillRect(0,0,size,size);
     const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
@@ -516,10 +555,10 @@ export default class Level3 extends Phaser.Scene {
     tex.refresh();
   }
 
-  makeSeamlessBlobsTexture(key, size, { blobColor=0x1a5b86, blobAlpha=0.08, blobCount=70, minR=16, maxR=60 } = {}){
-    if (this.textures.exists(key)) return;
-    const tex = this.textures.createCanvas(key, size, size);
-    const ctx = tex.getContext();
+ makeSeamlessBlobsTexture(key, size, opts = {}){
+  if (this.textures.exists(key)) return;
+  const tex = this.textures.createCanvas(key, size, size);
+  const ctx = tex.getContext();
     const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
     ctx.clearRect(0,0,size,size);
     for (let i=0;i<blobCount;i++){
@@ -542,6 +581,62 @@ export default class Level3 extends Phaser.Scene {
     }
     ctx.globalAlpha = 1; tex.refresh();
   }
+
+  // ===== Unten-Toast (weiße Info) =====
+makeShotToast(){
+  const pad = 16;
+  const cont = this.add.container(this.scale.width/2, this.scale.height - (40 + pad))
+    .setScrollFactor(0).setDepth(9900).setAlpha(0);
+
+  const bg = this.add.rectangle(0, 0, Math.min(640, this.scale.width*0.9), 40, 0x000000, 0.35)
+    .setOrigin(0.5);
+
+  const txt = this.add.text(0, 0, "", {
+    fontFamily:"system-ui, sans-serif",
+    fontSize:"18px",
+    color:"#ffffff",
+    stroke:"#000000",
+    strokeThickness:3
+  }).setOrigin(0.5);
+
+  cont.add([bg, txt]);
+  cont._bg = bg;
+  cont._text = txt;
+  return cont;
+}
+
+_showNextShotToast(){
+  const msg = this.shotQueue.shift();
+  if (!msg){ this.shotToastBusy = false; return; }
+  this.shotToastBusy = true;
+
+  const p = this.shotToast;
+  p._text.setText(msg);
+
+  // Hintergrundbreite dynamisch an Text anpassen
+  const w = Math.min(this.scale.width * 0.9, Math.max(260, p._text.width + 48));
+  p._bg.width = w;
+
+  p.setAlpha(0);
+  this.tweens.add({
+    targets: p, alpha: 1, duration: 120, ease: "Quad.easeOut",
+    onComplete: () => {
+      this.time.delayedCall(1000, () => {
+        this.tweens.add({
+          targets: p, alpha: 0, duration: 220, ease: "Quad.easeIn",
+          onComplete: () => this._showNextShotToast()
+        });
+      });
+    }
+  });
+}
+
+showShotMessages(msgArray){
+  for (const m of msgArray) this.shotQueue.push(m);
+  if (!this.shotToastBusy) this._showNextShotToast();
+}
+
+
 }
 
 

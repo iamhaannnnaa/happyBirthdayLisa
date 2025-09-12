@@ -123,11 +123,15 @@ export default class Level2 extends Phaser.Scene {
         } else if (ch === "S"){
           startX = px; startY = py;
         } else if (ch === "M"){
-          const n = this.npcs.create(px, py, "mom").setData("id","mom");
-          n.setData("line", "Mama: \"Hier ist dein Schlüssel für die grüne Tür!\"");
+        // bei "M"
+            const n = this.npcs.create(px, py, "mom").setData("id","mom");
+            n.setData("line", "Mama: \"Hier ist dein Schlüssel für die grüne Tür!\"");
+            n.setData("gaveKey", false);
         } else if (ch === "F"){
-          const n = this.npcs.create(px, py, "dad").setData("id","dad");
-          n.setData("line", "Papa: \"Und ich öffne die rote Tür für dich!\"");
+          // bei "F"
+            const n = this.npcs.create(px, py, "dad").setData("id","dad");
+            n.setData("line", "Papa: \"Und ich öffne die rote Tür für dich!\"");
+            n.setData("gaveKey", false);
         } else if (ch === "D"){
           const d = this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
           d.refreshBody();
@@ -234,23 +238,33 @@ export default class Level2 extends Phaser.Scene {
   }
 
   // ====== Interaktionen ======
-  talkTo(npc){
-    if (!this.keys.e.isDown) return;
-    const id = npc.getData("id");
+talkTo(npc){
+  if (!npc || this.gameOver) return;
 
-    if (id === "mom" && !this.haveMomKey){
-      this.haveMomKey = true;
-      this.showInfo("Mama: Schlüssel erhalten! → Tür D ist nun offen.");
-      this.openDoor("door1");                  // D auf
-    } else if (id === "dad" && !this.haveDadKey){
-      this.haveDadKey = true;
-      this.showInfo("Papa: Schlüssel erhalten! → Tür E ist nun offen.");
-      this.openDoor("door2");                  // E auf
-    } else {
-      this.showInfo(npc.getData("line"));
-    }
+  const id = npc.getData("id");
+  const gave = npc.getData("gaveKey") === true;
+
+  if (id === "mom" && !this.haveMomKey && !gave){
+    this.haveMomKey = true;
+    npc.setData("gaveKey", true);
+    this.openDoor("door1");  // Tür D
+    this.showInfo("Mama: Schlüssel erhalten! → Tür D ist nun offen.");
     this.updateUI();
+    return;
   }
+
+  if (id === "dad" && !this.haveDadKey && !gave){
+    this.haveDadKey = true;
+    npc.setData("gaveKey", true);
+    this.openDoor("door2");  // Tür E
+    this.showInfo("Papa: Schlüssel erhalten! → Tür E ist nun offen.");
+    this.updateUI();
+    return;
+  }
+
+  // sonst nichts tun (kein Spam bei dauerhaftem Kontakt)
+}
+
 
   openDoor(id){
     this.doors.children.iterate(d=>{
