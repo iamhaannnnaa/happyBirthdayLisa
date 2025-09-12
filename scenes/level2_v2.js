@@ -4,7 +4,7 @@ const DEBUG = false;
 
 /* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
 (function () {
-  var VERSION = "L2-2025-09-12-topcenter-hud-solid-npcs-no-extra-cams+floatO2";
+  var VERSION = "L2-2025-09-12-topcenter-hud-solid-npcs-no-extra-cams+floatO2+keyOverlay";
   var now = new Date().toISOString();
   var url = "(unknown)";
   try {
@@ -54,7 +54,7 @@ export default class Level2 extends Phaser.Scene {
   create(){
     // ------- Einstellungen -------
     const TILE         = 88;
-    const CAM_ZOOM     = 1.8;
+    const CAM_ZOOM     = 1.5;
     const PLAYER_SCALE = 0.18;
     this.TILE = TILE;
 
@@ -67,10 +67,10 @@ export default class Level2 extends Phaser.Scene {
       "#.######.#.#.#.####.#.######",
       "#....M#..#.#.#....#D###...##",
       "############.######.....#..#",
-      "#.....#....###.##...###.####",
-      "####....##........#...#....#",
-      "#..F######.######.#.#.######",
-      "#.##............#.#.#......#",
+      "#...#F#....###.##...###.####",
+      "#.#.#...##........#...#....#",
+      "#.#.######.######.#.#.######",
+      "#.#.............#.#.#......#",
       "#......#.#.##.#.#.#...##.#E#",
       "######.#...##.#.#.####.#.#.#",
       "#......#.#....#.#......###X#",
@@ -197,7 +197,7 @@ export default class Level2 extends Phaser.Scene {
     this.haveDadKey = false; // Tür E
     this.gameOver   = false;
 
-    this.oxygenMax  = 52;
+    this.oxygenMax  = 40;
     this.oxygen     = this.oxygenMax;
 
     // --- NEU: schwebende O2-Leiste über dem Spieler ---
@@ -216,10 +216,30 @@ export default class Level2 extends Phaser.Scene {
       stroke:"#000", strokeThickness:3
     }).setOrigin(0,1).setScrollFactor(0).setDepth(10000);
 
+    // === NEU: Key-Overlay (Foto-Overlay-Stil aus L3) ===
+    this.keyOverlay = this.makeKeyOverlay();
+
     // Auf Resize HUD korrekt neu positionieren
-    this.scale.on("resize", (gameSize)=>{
+    this.scale.on("resize", ()=>{
       this.repositionUIFrame();
       escTxt.setPosition(16, this.scale.height-10);
+
+      // Overlay anpassen
+      if (this.keyOverlay){
+        this.keyOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+        if (this.keyOverlay._dim){
+          this.keyOverlay._dim.width  = this.scale.width;
+          this.keyOverlay._dim.height = this.scale.height;
+        }
+        if (this.keyOverlay._panel){
+          const panelW = Math.min(560, this.scale.width*0.9);
+          this.keyOverlay._panel.width = panelW;
+          // Höhe passt sich dynamisch beim Setzen des Textes an
+          if (this.keyOverlay._text){
+            this.keyOverlay._text.setWordWrapWidth(panelW - 48, true);
+          }
+        }
+      }
     });
 
     // ------- O₂-Timer -------
@@ -272,7 +292,11 @@ export default class Level2 extends Phaser.Scene {
       this.haveMomKey = true;
       npc.setData("gaveKey", true);
       this.openDoor("door1"); // Tür D
+
+      // Bestehende kleine Info + NEU: Overlay im L3-Stil
       this.showInfo("Mama: Schlüssel erhalten → Tür D öffnet sich!");
+      this.showKeyOverlay(["Schlüssel erhalten: Tür D öffnet sich!"]);
+
       this.updateUI();
       return;
     }
@@ -281,7 +305,10 @@ export default class Level2 extends Phaser.Scene {
       this.haveDadKey = true;
       npc.setData("gaveKey", true);
       this.openDoor("door2"); // Tür E
+
       this.showInfo("Papa: Schlüssel erhalten → Tür E öffnet sich!");
+      this.showKeyOverlay(["Schlüssel erhalten: Tür E öffnet sich!"]);
+
       this.updateUI();
       return;
     }
@@ -571,7 +598,73 @@ export default class Level2 extends Phaser.Scene {
     else if (ratio < 0.66) color = 0xffc24d;  // gelb
     fill.fillColor = color;
   }
-}
 
+  // ====== Key-Overlay (vom L3-Foto-Overlay abgeleitet) ======
+  makeKeyOverlay(){
+    const W = this.scale.width, H = this.scale.height;
+    const cont = this.add.container(W/2, H/2)
+      .setScrollFactor(0)
+      .setDepth(20000) // ganz oben
+      .setAlpha(0)
+      .setVisible(false);
+
+    // Dimmer
+    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0.5);
+    // Panel
+    const panelW = Math.min(560, W*0.9);
+    const panelH = 140;
+    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
+    panel.setStrokeStyle(3, 0xaad4ff, 1);
+
+    const txt = this.add.text(0, 0, "", {
+      fontFamily:"system-ui, sans-serif",
+      fontSize:"20px",
+      color:"#103a5c",
+      align:"center",
+      wordWrap: { width: panelW - 48 }
+    }).setOrigin(0.5);
+
+    cont.add([dim, panel, txt]);
+    cont._dim = dim;
+    cont._panel = panel;
+    cont._text = txt;
+    return cont;
+  }
+
+  showKeyOverlay(lines){
+    const cont = this.keyOverlay;
+    if (!cont) return;
+
+    // Text aufbereiten
+    const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    cont._text.setText(msg);
+
+    // Panelhöhe dynamisch (mehrere Zeilen → größer)
+    const baseH = 120;
+    const extra = Math.max(0, cont._text.height - 60);
+    cont._panel.height = baseH + extra;
+
+    // Dim auf aktuelle Fenstergröße bringen
+    cont._dim.width  = this.scale.width;
+    cont._dim.height = this.scale.height;
+
+    cont.setPosition(this.scale.width/2, this.scale.height/2);
+    cont.setVisible(true);
+    cont.setAlpha(0);
+
+    // Einblenden, kurz halten, ausblenden
+    this.tweens.add({
+      targets: cont, alpha: 1, duration: 120, ease: "Quad.easeOut",
+      onComplete: () => {
+        this.time.delayedCall(1100, () => {
+          this.tweens.add({
+            targets: cont, alpha: 0, duration: 220, ease: "Quad.easeIn",
+            onComplete: () => cont.setVisible(false)
+          });
+        });
+      }
+    });
+  }
+}
 
 
