@@ -195,15 +195,15 @@ export default class Level2 extends Phaser.Scene {
     this.updateUI();                  // erste Anzeige
     this.scale.on("resize", () => this.repositionUIFrame()); // sicher neu platzieren
 
-    // O₂-Timer
-    this.time.addEvent({
-      delay:1000, loop:true, callback: ()=>{
-        if (this.gameOver) return;
-        this.oxygen = Math.max(0, this.oxygen-1);
-        this.UI();
-        if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
-      }
-    });
+ this.time.addEvent({
+  delay:1000, loop:true, callback: ()=>{
+    if (this.gameOver) return;
+    this.oxygen = Math.max(0, this.oxygen-1);
+    this.updateUI();             // ✅ richtige Methode
+    if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
+  }
+});
+
 
     // Kollisionen/Overlaps
     this.physics.add.collider(this.player, this.walls);

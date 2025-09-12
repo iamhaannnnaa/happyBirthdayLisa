@@ -320,56 +320,85 @@ export default class Level3 extends Phaser.Scene {
     return layer;
   }
 
-  buildBookList(layer){
-    const list = layer._list;
-    list.removeAll(true);
+ buildBookList(layer){
+  const list = layer._list;
+  list.removeAll(true);
 
-    const total = this.SPECIES.length;
-    let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
+  const total = this.SPECIES.length;
+  let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
 
-    const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 52,
-      `Fortschritt: ${have} / ${total}`, {
-        fontFamily:"system-ui", fontSize:"18px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
-      }).setOrigin(0.5,0);
-    list.add(prog);
+  // Fortschritt (wie bisher)
+  const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 52,
+    `Fortschritt: ${have} / ${total}`, {
+      fontFamily:"system-ui", fontSize:"18px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
+    }).setOrigin(0.5,0);
+  list.add(prog);
 
-    const colW = (layer._panel.width - 56) / 2;
-    const rowH = 42;
-    let idx = 0;
-    for (const s of this.SPECIES){
-      const caught = !!this.dex.caught[s.id];
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      const x = col * colW;
-      const y = 40 + row * rowH;
+  // Einträge (2 Spalten) – mit Thumbnails
+  const colW  = (layer._panel.width - 56) / 2;
+  const rowH  = 58;   // höher wegen Bildchen
+  const padL  = 10;   // linker Innenabstand je Zelle
+  const thumbH = 36;  // Zielhöhe der Thumbnails
+  const gap   = 10;   // Abstand Bild -> Name
+  const nameW = 220;  // Breite bis zum Status
 
-      const dot = this.add.circle(x+10, y+12, 8, s.color);
-      const name = this.add.text(x+28, y, s.name, {
-        fontFamily:"system-ui", fontSize:"18px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
-      });
-      const status = this.add.text(x+28+220, y, caught ? "✓" : "–", {
-        fontFamily:"system-ui", fontSize:"18px",
-        color: caught ? "#a7f5a1" : "#ffc0c0", stroke:"#000", strokeThickness:3
-      });
+  let idx = 0;
+  for (const s of this.SPECIES){
+    const caught = !!this.dex.caught[s.id];
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const baseX = col * colW;
+    const baseY = 40 + row * rowH;
 
-      list.add(dot); list.add(name); list.add(status);
-      idx++;
+    let nameX;
+
+    if (this.textures.exists(s.tex)){
+      // PNG-Thumbnail
+      const img = this.add.image(baseX + padL, baseY + 16, s.tex).setOrigin(0,0.5);
+      const src = this.textures.get(s.tex).getSourceImage?.();
+      const scale = (src && src.height) ? (thumbH / src.height) : 1;
+      img.setScale(scale);
+      list.add(img);
+      nameX = baseX + padL + (src ? src.width * scale : thumbH) + gap;
+    } else {
+      // Fallback: farbiger Punkt
+      const dot = this.add.circle(baseX + padL + 18, baseY + 16, 12, s.color);
+      list.add(dot);
+      nameX = baseX + padL + 18 + 12 + gap;
     }
 
-    const btn = this.add.rectangle(layer._panel.getBottomCenter().x, layer._panel.getBottomCenter().y - 28, 200, 40, 0x0d2e46, 1)
-      .setInteractive({useHandCursor:true});
-    const btnt = this.add.text(btn.x, btn.y, "Fortschritt zurücksetzen", {
-      fontFamily:"system-ui", fontSize:"16px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
-    }).setOrigin(0.5);
-    btn.on("pointerover", ()=> btn.setFillStyle(0x134062,1));
-    btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));
-    btn.on("pointerup", ()=>{
-      this.dex.caught = {};
-      this.saveDex(); this.updateHud(); this.refreshBook();
+    // Name
+    const name = this.add.text(nameX, baseY, s.name, {
+      fontFamily:"system-ui", fontSize:"18px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
     });
+    list.add(name);
 
-    list.add(btn); list.add(btnt);
+    // Status (✓ / –)
+    const status = this.add.text(nameX + nameW, baseY, caught ? "✓" : "–", {
+      fontFamily:"system-ui", fontSize:"18px",
+      color: caught ? "#a7f5a1" : "#ffc0c0", stroke:"#000", strokeThickness:3
+    });
+    list.add(status);
+
+    idx++;
   }
+
+  // Reset-Button (wie bisher)
+  const btn = this.add.rectangle(layer._panel.getBottomCenter().x, layer._panel.getBottomCenter().y - 28, 200, 40, 0x0d2e46, 1)
+    .setInteractive({useHandCursor:true});
+  const btnt = this.add.text(btn.x, btn.y, "Fortschritt zurücksetzen", {
+    fontFamily:"system-ui", fontSize:"16px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
+  }).setOrigin(0.5);
+  btn.on("pointerover", ()=> btn.setFillStyle(0x134062,1));
+  btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));
+  btn.on("pointerup", ()=>{
+    this.dex.caught = {};
+    this.saveDex(); this.updateHud(); this.refreshBook();
+  });
+
+  list.add(btn); list.add(btnt);
+}
+
 
   toggleBook(){
     this.bookOpen = !this.bookOpen;
