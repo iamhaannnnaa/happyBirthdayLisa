@@ -11,6 +11,21 @@ export default class Level3 extends Phaser.Scene {
       frameWidth: 480, frameHeight: 480, endFrame: 15
     });
 
+  const base = "assets/objects/haie/"; // <— dein Ordner
+
+  // Achtung: Dateinamen exakt wie im Ordner (inkl. Groß-/Kleinschreibung & ß)
+  this.load.image("shark_great_white", base + "Weißerhai.png");
+  this.load.image("shark_hammerhead",  base + "hammerhai.png");
+  this.load.image("shark_tiger",       base + "Tiegerhai.png"); // im Screenshot steht "Tiegerhai.png"
+  this.load.image("shark_bull",        base + "bullenhai.png");
+  this.load.image("shark_thresher",    base + "Fuchshai.png");
+  this.load.image("shark_whale",       base + "Walhai.png");
+  this.load.image("shark_blacktip",    base + "Schwarzspitzenhai.png"); // prüf den exakten Dateinamen
+  this.load.image("shark_mako",        base + "makohai.png");
+  this.load.image("shark_blue",        base + "blauhai.png");
+  this.load.image("shark_zebra",       base + "zebrahai.png");
+
+
     // [NEU] Falls du es lieber im preload haben willst: wir könnten die Texturen
     // auch hier erzeugen. Ich lasse die Erzeugung unten in create(), damit alle
     // Canvas-Funktionen sicher verfügbar sind.
@@ -58,18 +73,19 @@ export default class Level3 extends Phaser.Scene {
     // --- Platzhalter-Texturen (große "Punkte" als Haie) ---
     // ca. Tauchergröße: Diver 480px * 0.24 ≈ 115px -> wir machen 120x120 Kreise
     this.ensureBigDotTexture("dot_big_white", 0xffffff, 120);
-    this.SPECIES = [
-      { id:"great_white", name:"Weißer Hai",    color:0xcfd6d6 },
-      { id:"hammerhead",  name:"Hammerhai",     color:0xbdd7ff },
-      { id:"tiger",       name:"Tigerhai",      color:0xc8a26d },
-      { id:"bull",        name:"Bullenhai",     color:0xb4b4b4 },
-      { id:"thresher",    name:"Fuchshai",      color:0x9ac7ff },
-      { id:"whale",       name:"Walhai",        color:0x6fb2ff },
-      { id:"blacktip",    name:"Schwarzspitzen",color:0x9fd1bf },
-      { id:"mako",        name:"Makohai",       color:0x8fb8ff },
-      { id:"blue",        name:"Blauhai",       color:0x6aa6ff },
-      { id:"zebra",       name:"Zebrahai",      color:0xe6d18f }
-    ];
+   this.SPECIES = [
+  { id:"great_white", name:"Weißer Hai",     color:0xcfd6d6, tex:"shark_great_white" },
+  { id:"hammerhead",  name:"Hammerhai",      color:0xbdd7ff, tex:"shark_hammerhead"  },
+  { id:"tiger",       name:"Tigerhai",       color:0xc8a26d, tex:"shark_tiger"       },
+  { id:"bull",        name:"Bullenhai",      color:0xb4b4b4, tex:"shark_bull"        },
+  { id:"thresher",    name:"Fuchshai",       color:0x9ac7ff, tex:"shark_thresher"    },
+  { id:"whale",       name:"Walhai",         color:0x6fb2ff, tex:"shark_whale"       },
+  { id:"blacktip",    name:"Schwarzspitzen", color:0x9fd1bf, tex:"shark_blacktip"    },
+  { id:"mako",        name:"Makohai",        color:0x8fb8ff, tex:"shark_mako"        },
+  { id:"blue",        name:"Blauhai",        color:0x6aa6ff, tex:"shark_blue"        },
+  { id:"zebra",       name:"Zebrahai",       color:0xe6d18f, tex:"shark_zebra"       }
+];
+
     for (const s of this.SPECIES) this.ensureBigDotTexture("dot_big_"+s.id, s.color, 120);
 
     // --- Lokaler Fortschritt (Logbuch) ---

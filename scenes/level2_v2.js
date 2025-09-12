@@ -46,7 +46,7 @@ export default class Level2 extends Phaser.Scene {
       }); 
     }
     if (!this.textures.exists("wall")){
-    this.load.image("wall", "assets/walls/coral_88.png"); // <-- deine Wand
+    this.load.image("wall", "assets/objects/mauer.png"); // <-- deine Wand
   }
   if (!this.textures.exists("floor")){
     this.load.image("floor", "assets/floors/sand_88.png"); // optional: Boden
