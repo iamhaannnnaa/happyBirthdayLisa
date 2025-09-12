@@ -4,7 +4,7 @@ const DEBUG = false;
 
 /* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
 (function () {
-  var VERSION = "L2-2025-09-12-topcenter-hud-solid-npcs-no-extra-cams";
+  var VERSION = "L2-2025-09-12-topcenter-hud-solid-npcs-no-extra-cams+floatO2";
   var now = new Date().toISOString();
   var url = "(unknown)";
   try {
@@ -200,6 +200,9 @@ export default class Level2 extends Phaser.Scene {
     this.oxygenMax  = 40;
     this.oxygen     = this.oxygenMax;
 
+    // --- NEU: schwebende O2-Leiste über dem Spieler ---
+    this.createFloatingO2Bar();
+
     // ------- HUD oben mittig (fix) -------
     this.ui = this.makeUIFrameTopCenter()
       .setDepth(10000)             // ganz nach oben
@@ -225,6 +228,7 @@ export default class Level2 extends Phaser.Scene {
         if (this.gameOver) return;
         this.oxygen = Math.max(0, this.oxygen-1);
         this.updateUI();
+        this.updateO2Visual(); // NEU: schwebende Leiste sofort mitziehen
         if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
       }
     });
@@ -328,6 +332,9 @@ export default class Level2 extends Phaser.Scene {
       this.player.body.setAcceleration(0,0);
       if (this.textures.exists("diver")) this.player.play("diver_idle", true);
     }
+
+    // --- NEU: O2-Leiste an Spielerposition binden ---
+    this.updateFloatingO2Bar();
   }
 
   // ====== HUD oben mittig ======
@@ -497,9 +504,74 @@ export default class Level2 extends Phaser.Scene {
       this.player.body.setSize(bw,bh,true);
     }
   }
+
+  // ====== Schwebende O2-Leiste über dem Spieler ======
+  createFloatingO2Bar(){
+    const barWidth  = 64;   // Breite in Pixeln
+    const barHeight = 8;    // Höhe in Pixeln
+    const pad       = 1;    // Innenabstand für den Rand
+    const offY      = -this.player.displayHeight * 0.65; // Offset über dem Kopf
+
+    const c = this.add.container(this.player.x, this.player.y + offY);
+    c.setDepth(9999);        // unter HUD (HUD hat 10000)
+    c.setScrollFactor(1);    // bewegt sich mit der Welt/Kamera
+
+    // Hintergrund + Border
+    const bg = this.add.rectangle(0, 0, barWidth, barHeight, 0x031b28, 0.85).setOrigin(0.5);
+    const border = this.add.rectangle(0, 0, barWidth, barHeight).setOrigin(0.5).setStrokeStyle(1, 0x0a3a55, 1);
+
+    // Füllung (wird in der Breite verändert)
+    const fill = this.add.rectangle(
+      -barWidth/2 + pad, 0,
+      barWidth - pad*2, barHeight - pad*2,
+      0x00aaff, 1
+    ).setOrigin(0, 0.5);
+
+    // kleines O₂-"Icon" links
+    const dot = this.add.rectangle(-barWidth/2 - 6, 0, 4, 4, 0xffffff, 0.9).setOrigin(0.5);
+
+    c.add([bg, border, fill, dot]);
+
+    // Referenzen merken
+    this._o2Float = {
+      container: c,
+      fill,
+      barWidth,
+      barHeight,
+      pad,
+      offY
+    };
+
+    // initiale Breite/Farbe
+    this.updateO2Visual();
+  }
+
+  updateFloatingO2Bar(){
+    if (!this._o2Float || !this.player) return;
+    const { container, offY } = this._o2Float;
+    container.x = this.player.x;
+    container.y = this.player.y + offY;
+
+    // optional "einrasten":
+    // container.x = Math.round(container.x);
+    // container.y = Math.round(container.y);
+  }
+
+  updateO2Visual(){
+    if (!this._o2Float) return;
+    const { fill, barWidth, pad } = this._o2Float;
+
+    const ratio = Phaser.Math.Clamp(this.oxygen / this.oxygenMax, 0, 1);
+    const innerW = barWidth - pad*2;
+    fill.width = Math.max(0, innerW * ratio);
+
+    // Farb-Feedback
+    let color = 0x00aaff;        // Standard blau
+    if (ratio < 0.33)      color = 0xff4d4d;  // rot
+    else if (ratio < 0.66) color = 0xffc24d;  // gelb
+    fill.fillColor = color;
+  }
 }
-
-
 
 
 
