@@ -162,43 +162,63 @@ export default class Level3 extends Phaser.Scene {
 
   // ================= Update =================
   update(){
-    if (this.bookOpen) {
-      this.player.setAcceleration(0,0);
-      if (this.anims.exists("diver_idle")) this.player.play("diver_idle", true);
-      return;
-    }
-    const speed = 300;
-    const k = this.keys;
-    const ix = (k.left.isDown || k.a.isDown ? -1 : 0) + (k.right.isDown || k.d.isDown ? 1 : 0);
-    const iy = (k.up.isDown   || k.w.isDown ? -1 : 0) + (k.down.isDown || k.s.isDown ? 1 : 0);
-
-    this.player.setAcceleration(ix*speed*2, iy*speed*2);
-    if (ix!==0 || iy!==0){
-      if (this.anims.exists("diver_swim")) this.player.play("diver_swim", true);
-      const ang = Math.atan2(iy, ix);
-      if (!isNaN(ang)) this.player.setRotation(ang);
-    } else {
-      this.player.setAcceleration(0,0);
-      if (this.anims.exists("diver_idle")) this.player.play("diver_idle", true);
-    }
-
-    // [NEU] === Parallax / Drift für Wasser ===
-    if (this.bgBase && this.bgCaustics && this.bgDust){
-      const cam = this.cameras.main;
-      // Parallax relativ zur Kameraposition
-      this.bgBase.tilePositionX = cam.scrollX * 0.08;
-      this.bgBase.tilePositionY = cam.scrollY * 0.06;
-
-      // Caustics leicht fließen lassen
-      this.bgCaustics.tilePositionX += 0.12;
-      this.bgCaustics.tilePositionY += 0.07;
-
-      // feiner Staub mit minimaler Eigenbewegung
-      const t = this.time.now || performance.now();
-      this.bgDust.tilePositionX = cam.scrollX * 0.10 + t * 0.0006;
-      this.bgDust.tilePositionY = cam.scrollY * 0.09 + t * 0.0004;
-    }
+  if (this.bookOpen) {
+    this.player.setAcceleration(0,0);
+    if (this.anims.exists("diver_idle")) this.player.play("diver_idle", true);
+    return;
   }
+
+  const speed = 300;
+  const k = this.keys;
+  const ix = (k.left.isDown || k.a.isDown ? -1 : 0) + (k.right.isDown || k.d.isDown ? 1 : 0);
+  const iy = (k.up.isDown   || k.w.isDown ? -1 : 0) + (k.down.isDown || k.s.isDown ? 1 : 0);
+  const moving = (ix !== 0 || iy !== 0);
+
+  if (moving){
+    this.player.setAcceleration(ix*speed*2, iy*speed*2);
+    if (this.anims.exists("diver_swim")) this.player.play("diver_swim", true);
+
+    // === Orientierung ===
+    // Dominante Achse wählen (verhindert Diagonal-Flackern)
+    if (Math.abs(ix) >= Math.abs(iy)) {
+      // Horizontal dominiert
+      this.player.setRotation(0);       // keine Rotation für L/R
+      if (ix < 0) {
+        // LINKS: Basisrichtung des Sheets -> nicht spiegeln
+        this.player.setFlipX(false);
+      } else {
+        // RECHTS: nur horizontal spiegeln
+        this.player.setFlipX(true);
+      }
+    } else {
+      // Vertikal dominiert
+      this.player.setFlipX(false);      // sicherstellen: keine Spiegelung aktiv
+      if (iy < 0) {
+        // OBEN: 1x im Uhrzeigersinn
+        this.player.setRotation(Math.PI / 2);
+      } else {
+        // UNTEN: 1x gegen den Uhrzeigersinn
+        this.player.setRotation(-Math.PI / 2);
+      }
+    }
+  } else {
+    this.player.setAcceleration(0,0);
+    if (this.anims.exists("diver_idle")) this.player.play("diver_idle", true);
+  }
+
+  // === Parallax / Drift für Wasser (falls vorhanden) ===
+  if (this.bgBase && this.bgCaustics && this.bgDust){
+    const cam = this.cameras.main;
+    this.bgBase.tilePositionX = cam.scrollX * 0.08;
+    this.bgBase.tilePositionY = cam.scrollY * 0.06;
+    this.bgCaustics.tilePositionX += 0.12;
+    this.bgCaustics.tilePositionY += 0.07;
+    const t = this.time.now || performance.now();
+    this.bgDust.tilePositionX = cam.scrollX * 0.10 + t * 0.0006;
+    this.bgDust.tilePositionY = cam.scrollY * 0.09 + t * 0.0004;
+  }
+}
+
 
   // ================= Foto-Logik =================
   takePhoto(){

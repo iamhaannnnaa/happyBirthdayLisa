@@ -51,7 +51,7 @@ export default class Level2 extends Phaser.Scene {
     // ------- Einstellungen -------
     const TILE         = 88;    // Größe der Kacheln
     const CAM_ZOOM     = 1.5;   // Kamera-Zoom
-    const PLAYER_SCALE = 0.24;  // Sprite-Skalierung
+    const PLAYER_SCALE = 0.18;  // Sprite-Skalierung
     this.TILE = TILE;
 
     // ------- Labyrinth (15 Zeilen × 28 Spalten) -------
@@ -435,14 +435,30 @@ export default class Level2 extends Phaser.Scene {
   }
 
   updateBodySize(){
-    // schmalere Hitbox, damit man besser durch enge Gänge passt
-    const bw=this.player.displayWidth*0.38, bh=this.player.displayHeight*0.52;
-    this.player.body.setSize(bw,bh);
+  // etwas größere, aber runde Hitbox – verhindert visuelles „Reinschneiden“
+  const USE_CIRCLE_HITBOX = true;
+
+  // Verhältnis zur Sprite-Größe (höher = weniger Reinragen, aber enger in Gängen)
+  const HITBOX_SCALE_X = 0.68;  // vorher 0.38
+  const HITBOX_SCALE_Y = 0.72;  // vorher 0.52
+
+  const bw = this.player.displayWidth  * HITBOX_SCALE_X;
+  const bh = this.player.displayHeight * HITBOX_SCALE_Y;
+
+  if (USE_CIRCLE_HITBOX){
+    const r = Math.min(bw, bh) * 0.5;
+    this.player.body.setCircle(r);
+    // Kreis mittig unter das Sprite legen
     this.player.body.setOffset(
-      (this.player.displayWidth  - bw)/2,
-      (this.player.displayHeight - bh)/2
+      (this.player.displayWidth  * 0.5) - r,
+      (this.player.displayHeight * 0.5) - r
     );
+  } else {
+    // Rechteckig, aber größer als vorher
+    this.player.body.setSize(bw, bh, true); // true = automatisch zentrieren
   }
+}
+
 }
 
 
