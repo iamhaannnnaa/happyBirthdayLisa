@@ -88,26 +88,30 @@ export default class Level3 extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
     this.input.keyboard.addCapture(['SPACE', 'P']); // <-- wichtig
 
-    // --- Haie spawnen: PNG falls vorhanden, sonst Fallback-Kreis ---
-    this.sharks = this.physics.add.group();
-    const perSpecies = 6;
-    for (const s of this.SPECIES){
-      for (let i=0;i<perSpecies;i++){
-        const x = 200 + Math.random()*(this.WORLD_W-400);
-        const y = 200 + Math.random()*(this.WORLD_H-400);
+// --- Haie spawnen: PNG falls vorhanden, sonst Fallback-Kreis ---
+this.sharks = this.physics.add.group();
+const perSpecies = 6;
+for (const s of this.SPECIES){
+  for (let i=0;i<perSpecies;i++){
+    const x = 200 + Math.random()*(this.WORLD_W-400);
+    const y = 200 + Math.random()*(this.WORLD_H-400);
 
-        const texKey = this.textures.exists(s.tex) ? s.tex : ("dot_big_"+s.id);
-        const spr = this.createSharkSprite(x, y, texKey);
+    const texKey = this.textures.exists(s.tex) ? s.tex : ("dot_big_"+s.id);
+    const spr = this.createSharkSprite(x, y, texKey);
 
-        spr.setData("id", s.id);
-        spr.setData("name", s.name);
-        spr.setData("color", s.color);
+    // <<< WICHTIG: dem Group hinzufügen >>>
+    this.sharks.add(spr);
 
-        this.assignRandomVelocity(spr, Phaser.Math.Between(40, 90));
-        this.scheduleWander(spr, 1200, 2600);
-      }
-    }
-    this.physics.add.collider(this.player, this.sharks);
+    spr.setData("id", s.id);
+    spr.setData("name", s.name);
+    spr.setData("color", s.color);
+
+    this.assignRandomVelocity(spr, Phaser.Math.Between(40, 90));
+    this.scheduleWander(spr, 1200, 2600);
+  }
+}
+this.physics.add.collider(this.player, this.sharks);
+
 
     // --- Foto-Frame an Spieler koppeln ---
     this.frameW = 320;
@@ -518,6 +522,8 @@ export default class Level3 extends Phaser.Scene {
     return spr;
   }
 
+
+  
   assignRandomVelocity(spr, speed){
     const ang = Math.random()*Math.PI*2;
     spr.setVelocity(Math.cos(ang)*speed, Math.sin(ang)*speed);
