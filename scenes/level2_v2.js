@@ -4,7 +4,7 @@ const DEBUG = false;
 
 /* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
 (function () {
-  var VERSION = "L2-2025-09-10-ui-topright";
+  var VERSION = "L2-2025-09-12-topcenter-hud+solid-npcs";
   var now = new Date().toISOString();
   var url = "(unknown)";
   try {
@@ -19,49 +19,46 @@ const DEBUG = false;
         }
       }
     }
-    if (url === "(unknown)" && typeof location !== "undefined" && location.href) {
-      url = location.href;
-    }
-  } catch (e) {}
+    if (url === "(unknown)" && typeof location !== "undefined" && location.href) url = location.href;
+  } catch(e){}
   try {
     console.log("%c[Level2] geladen:", "color:#4cf;font-weight:700;", VERSION, "@", now);
     console.log("Quelle:", url);
     if (typeof window !== "undefined") {
-      try {
-        Object.defineProperty(window, "__LEVEL2_VERSION__", { value: VERSION, writable: false, configurable: true });
-      } catch (_) { window.__LEVEL2_VERSION__ = VERSION; }
-      window.level2Info = function () { return { version: VERSION, url: url, loadedAt: now }; };
+      try { Object.defineProperty(window, "__LEVEL2_VERSION__", { value: VERSION, writable:false, configurable:true }); }
+      catch(_) { window.__LEVEL2_VERSION__ = VERSION; }
+      window.level2Info = function(){ return { version:VERSION, url, loadedAt:now }; };
     }
-  } catch (e) {}
+  } catch(e){}
 })();
 
 export default class Level2 extends Phaser.Scene {
   constructor(){ super("Level2"); }
 
   preload(){
-    // Diver: 1920x1920 (4x4), Frames 480x480 – NUR als Spieler, NICHT als Hintergrund.
+    // Spieler-Sprite
     if (!this.textures.exists("diver")){
       this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
-        frameWidth: 480, frameHeight: 480, endFrame: 15
-      }); 
+        frameWidth:480, frameHeight:480, endFrame:15
+      });
     }
+    // Wand- & Bodenbilder (optional). Wenn nicht vorhanden, baut makeSimpleTextures Fallbacks.
     if (!this.textures.exists("wall")){
-    this.load.image("wall", "assets/objects/mauer.png"); // <-- deine Wand
+      this.load.image("wall", "assets/objects/mauer.png");
+    }
+    if (!this.textures.exists("floor")){
+      this.load.image("floor", "assets/floors/sand_88.png");
+    }
   }
-  if (!this.textures.exists("floor")){
-    this.load.image("floor", "assets/floors/sand_88.png"); // optional: Boden
-  }
-}
-  
 
   create(){
     // ------- Einstellungen -------
-    const TILE         = 88;    // Größe der Kacheln
-    const CAM_ZOOM     = 1.5;   // Kamera-Zoom
-    const PLAYER_SCALE = 0.18;  // Sprite-Skalierung
+    const TILE         = 88;
+    const CAM_ZOOM     = 1.5;
+    const PLAYER_SCALE = 0.18;
     this.TILE = TILE;
 
-    // ------- Labyrinth (15 Zeilen × 28 Spalten) -------
+    // ------- Labyrinth -------
     const MAP = [
       "############################",
       "#S.....#......####.........#",
@@ -90,13 +87,13 @@ export default class Level2 extends Phaser.Scene {
     this.cameras.main.setRoundPixels(true);
     this.cameras.main.setZoom(CAM_ZOOM);
 
-    // Platzhalter-Texturen (Boden/Wände/Türen/Icons)
+    // Platzhalter-Texturen/Fallbacks anlegen
     this.makeSimpleTextures();
 
     // Gruppen
     this.walls = this.physics.add.staticGroup();
     this.doors = this.physics.add.staticGroup();
-    this.npcs  = this.physics.add.staticGroup();
+    this.npcs  = this.physics.add.staticGroup(); // statisch = solide
     this.exit  = this.physics.add.staticGroup();
 
     // Welt aus MAP bauen
@@ -107,31 +104,39 @@ export default class Level2 extends Phaser.Scene {
         const px = x*TILE + TILE/2;
         const py = y*TILE + TILE/2;
 
-        // Boden (damit Gänge sichtbar sind) – KEIN Diver-Hintergrund!
+        // Boden-Quad
         const f = this.add.image(px, py, "floor").setDepth(-5);
-            f.setDisplaySize(this.TILE, this.TILE);
+        f.setDisplaySize(this.TILE, this.TILE);
 
         if (ch === "#"){
           const w = this.walls.create(px, py, "wall");
-          w.setDisplaySize(this.TILE, this.TILE);   // << skaliert die Textur auf 88×88
-            w.setOrigin(0.5, 0.5);                    // (Standard, nur zur Sicherheit)
-            if (w.body){
+          w.setDisplaySize(this.TILE, this.TILE);
+          w.setOrigin(0.5, 0.5);
+          if (w.body){
             w.body.setSize(this.TILE, this.TILE);
             w.body.setOffset(-this.TILE/2 + w.displayOriginX, -this.TILE/2 + w.displayOriginY);
-            }
-            w.refreshBody();
+          }
+          w.refreshBody();
         } else if (ch === "S"){
           startX = px; startY = py;
         } else if (ch === "M"){
-        // bei "M"
-            const n = this.npcs.create(px, py, "mom").setData("id","mom");
-            n.setData("line", "Mama: \"Hier ist dein Schlüssel für die grüne Tür!\"");
-            n.setData("gaveKey", false);
+          const n = this.npcs.create(px, py, "mom").setData("id","mom");
+          n.setData("gaveKey", false);
+          n.setDisplaySize(this.TILE, this.TILE);
+          if (n.body){
+            n.body.setSize(this.TILE, this.TILE);
+            n.body.setOffset(-this.TILE/2 + n.displayOriginX, -this.TILE/2 + n.displayOriginY);
+          }
+          n.refreshBody();
         } else if (ch === "F"){
-          // bei "F"
-            const n = this.npcs.create(px, py, "dad").setData("id","dad");
-            n.setData("line", "Papa: \"Und ich öffne die rote Tür für dich!\"");
-            n.setData("gaveKey", false);
+          const n = this.npcs.create(px, py, "dad").setData("id","dad");
+          n.setData("gaveKey", false);
+          n.setDisplaySize(this.TILE, this.TILE);
+          if (n.body){
+            n.body.setSize(this.TILE, this.TILE);
+            n.body.setOffset(-this.TILE/2 + n.displayOriginX, -this.TILE/2 + n.displayOriginY);
+          }
+          n.refreshBody();
         } else if (ch === "D"){
           const d = this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
           d.refreshBody();
@@ -145,7 +150,7 @@ export default class Level2 extends Phaser.Scene {
       }
     }
 
-    // alle Wände voll kollidierbar
+    // Wände sicher kollidierbar
     this.walls.children.iterate(function(w){
       if (!w || !w.body) return;
       w.body.setSize(TILE, TILE);
@@ -169,7 +174,7 @@ export default class Level2 extends Phaser.Scene {
     this.player.body.setDrag(600,600);
     this.player.body.setMaxVelocity(320,320);
     this.updateBodySize();
-    this.player.setFlipX(true); // Blickrichtung: rechts
+    this.player.setFlipX(true);
 
     // Animationen
     if (this.textures.exists("diver")){
@@ -187,39 +192,48 @@ export default class Level2 extends Phaser.Scene {
     // Kamera folgt
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
-    // ------- HUD im Frame oben rechts -------
-    this.haveMomKey = false; // Tür D (grün)
-    this.haveDadKey = false; // Tür E (rot)
+    // ------- Status -------
+    this.haveMomKey = false; // Tür D
+    this.haveDadKey = false; // Tür E
     this.gameOver   = false;
 
     this.oxygenMax  = 40;
     this.oxygen     = this.oxygenMax;
 
-    this.ui = this.makeUIFrame();     // Frame oben rechts
-    this.updateUI();                  // erste Anzeige
-    this.scale.on("resize", () => this.repositionUIFrame()); // sicher neu platzieren
+    // ------- HUD oben mittig -------
+    this.ui = this.makeUIFrameTopCenter();
+    this.ui.setDepth(10000);
+    this.children.bringToTop(this.ui);
+    this.updateUI();
+    this.scale.on("resize", () => this.repositionUIFrame());
 
- this.time.addEvent({
-  delay:1000, loop:true, callback: ()=>{
-    if (this.gameOver) return;
-    this.oxygen = Math.max(0, this.oxygen-1);
-    this.updateUI();             // ✅ richtige Methode
-    if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
-  }
-});
-
-
-    // Kollisionen/Overlaps
-    this.physics.add.collider(this.player, this.walls);
-    this.physics.add.collider(this.player, this.doors, (_pl, door)=>{
-      if (door.getData("locked")){
-        this.showInfo("Verschlossen. Hole dir die Schlüssel bei Mama & Papa.");
+    // O₂-Timer
+    this.time.addEvent({
+      delay:1000, loop:true, callback: ()=>{
+        if (this.gameOver) return;
+        this.oxygen = Math.max(0, this.oxygen-1);
+        this.updateUI();
+        if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
       }
     });
-    this.physics.add.overlap(this.player, this.npcs, (_pl, npc)=> this.talkTo(npc));
+
+    // ------- Kollisionen -------
+    this.physics.add.collider(this.player, this.walls);
+
+    // Türen: blockieren solange locked; Hinweis beim Anprall
+    this.physics.add.collider(this.player, this.doors, (_pl, door)=>{
+      if (door.getData("locked")){
+        this.showInfo("Verschlossen. Hol dir die Schlüssel bei Mama & Papa.");
+      }
+    });
+
+    // NPCs: SOLID + Schlüsselvergabe beim Anstoß
+    this.physics.add.collider(this.player, this.npcs, (_pl, npc)=> this.onNpcBump(npc));
+
+    // Ausgang
     this.physics.add.overlap(this.player, this.exit, ()=> this.tryFinish());
 
-    // Steuerung
+    // ------- Steuerung -------
     this.keys = this.input.keyboard.addKeys({
       left:"LEFT", right:"RIGHT", up:"UP", down:"DOWN",
       a:"A", d:"D", w:"W", s:"S", e:"E", esc:"ESC"
@@ -229,50 +243,46 @@ export default class Level2 extends Phaser.Scene {
     this.add.text(16, this.scale.height-10, "⟵ Menü (ESC)",
       { fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff",
         stroke:"#000", strokeThickness:3 })
-      .setScrollFactor(0).setOrigin(0,1).setDepth(2000);
+      .setScrollFactor(0).setOrigin(0,1).setDepth(9999);
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
 
     if (DEBUG){
-      this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0);
+      this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0).setDepth(9999);
     }
   }
 
-  // ====== Interaktionen ======
-talkTo(npc){
-  if (!npc || this.gameOver) return;
+  // ====== NPC-Logik: Schlüssel bei Anstoß ======
+  onNpcBump(npc){
+    if (!npc || this.gameOver) return;
 
-  const id = npc.getData("id");
-  const gave = npc.getData("gaveKey") === true;
+    const id   = npc.getData("id");
+    const gave = npc.getData("gaveKey") === true;
 
-  if (id === "mom" && !this.haveMomKey && !gave){
-    this.haveMomKey = true;
-    npc.setData("gaveKey", true);
-    this.openDoor("door1");  // Tür D
-    this.showInfo("Mama: Schlüssel erhalten! → Tür D ist nun offen.");
-    this.updateUI();
-    return;
+    if (id === "mom" && !this.haveMomKey && !gave){
+      this.haveMomKey = true;
+      npc.setData("gaveKey", true);
+      this.openDoor("door1"); // Tür D
+      this.showInfo("Mama: Schlüssel erhalten → Tür D öffnet sich!");
+      this.updateUI();
+      return;
+    }
+
+    if (id === "dad" && !this.haveDadKey && !gave){
+      this.haveDadKey = true;
+      npc.setData("gaveKey", true);
+      this.openDoor("door2"); // Tür E
+      this.showInfo("Papa: Schlüssel erhalten → Tür E öffnet sich!");
+      this.updateUI();
+      return;
+    }
   }
-
-  if (id === "dad" && !this.haveDadKey && !gave){
-    this.haveDadKey = true;
-    npc.setData("gaveKey", true);
-    this.openDoor("door2");  // Tür E
-    this.showInfo("Papa: Schlüssel erhalten! → Tür E ist nun offen.");
-    this.updateUI();
-    return;
-  }
-
-  // sonst nichts tun (kein Spam bei dauerhaftem Kontakt)
-}
-
 
   openDoor(id){
     this.doors.children.iterate(d=>{
       if (d.getData("id")===id && d.getData("locked")){
         d.setTexture("door_open");
         d.setData("locked", false);
-        d.disableBody(true, true);                 // keine Kollision mehr
-        // Deko an gleicher Stelle (optische “offene Tür”)
+        d.disableBody(true, true);
         this.add.image(d.x, d.y, "door_open").setDepth(-4);
       }
     });
@@ -282,7 +292,7 @@ talkTo(npc){
     if (this.haveMomKey && this.haveDadKey){
       this.win();
     } else {
-      this.showInfo("Die Ausgangstür öffnet sich erst mit beiden Schlüsseln.");
+      this.showInfo("Die Ausgangstür öffnet sich erst mit beiden Schlüsseln (D & E).");
     }
   }
 
@@ -302,46 +312,42 @@ talkTo(npc){
       if (this.textures.exists("diver")) this.player.play("diver_swim", true);
       if (ix < 0)      this.player.setFlipX(false);
       else if (ix > 0) this.player.setFlipX(true);
-
-      // falls eine Info eingeblendet ist: schneller ausblenden beim Los-Schwimmen
-      if (this.ui && this.ui._info && this.ui._info.alpha > 0){
-        this.tweens.killTweensOf(this.ui._info);
-        this.tweens.add({ targets: this.ui._info, alpha: 0, duration: 160 });
-      }
     } else {
       this.player.body.setAcceleration(0,0);
       if (this.textures.exists("diver")) this.player.play("diver_idle", true);
     }
   }
 
-  // ====== HUD / UI (Frame oben rechts) ======
-  makeUIFrame(){
-    const pad = 16;
-    const frameW = 260;
-    const frameH = 120;
+  // ====== HUD oben mittig ======
+  makeUIFrameTopCenter(){
+    const pad = 10;
+    const frameW = 360;
+    const frameH = 80;
 
-    const ui = this.add.container(0,0).setScrollFactor(0).setDepth(3000);
+    const ui = this.add.container(this.scale.width/2, pad).setScrollFactor(0);
 
-    const bg = this.add.rectangle(0,0, frameW, frameH, 0x0d2e46, 0.92).setOrigin(1,0);
-    const border = this.add.rectangle(0,0, frameW, frameH).setOrigin(1,0)
-      .setStrokeStyle(2, 0x134062, 1);
+    // Panel
+    const bg = this.add.rectangle(0, 0, frameW, frameH, 0x0d2e46, 0.92).setOrigin(0.5,0);
+    const border = this.add.rectangle(0, 0, frameW, frameH).setOrigin(0.5,0).setStrokeStyle(2, 0x134062, 1);
 
-    const title = this.add.text(-frameW + 12, 8, "Level 2", {
+    // Titel
+    const title = this.add.text(-frameW/2 + 12, 8, "Level 2", {
       fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#cfe9ff",
       stroke:"#000", strokeThickness:2
-    });
+    }).setOrigin(0,0);
 
-    // O2-Balken
-    const barX = -frameW + 12, barY = 36;
-    const barW = frameW - 24, barH = 16;
+    // O2-Bar
+    const barX = -frameW/2 + 12, barY = 34;
+    const barW = 180, barH = 16;
     const o2bg = this.add.rectangle(barX, barY, barW, barH, 0x003654).setOrigin(0,0);
     const o2fg = this.add.rectangle(barX+2, barY+2, barW-4, barH-4, 0x00aaff).setOrigin(0,0);
+    const o2text  = this.add.text(barX, barY + 22, "O₂: --", { fontFamily:"monospace", fontSize:"16px", color:"#cfe9ff" }).setOrigin(0,0);
 
-    const o2text  = this.add.text(barX, barY + 22, "O₂: --", { fontFamily:"monospace", fontSize:"16px", color:"#cfe9ff" });
-    const keysTxt = this.add.text(barX, barY + 42, "Keys: –/–", { fontFamily:"monospace", fontSize:"16px", color:"#ffe66d" });
+    // Keys-Anzeige (D/E)
+    const keysTxt = this.add.text(barX + 210, 36, "Keys: D[–] E[–]", { fontFamily:"monospace", fontSize:"16px", color:"#ffe66d" }).setOrigin(0,0);
 
-    // Info (Meldungen)
-    const info = this.add.text(-12, 8, "", {
+    // Meldungen (rechts im Panel)
+    const info = this.add.text(frameW/2 - 12, 8, "", {
       fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#a7f5a1",
       align:"right", wordWrap:{ width: frameW-24 }, stroke:"#000", strokeThickness:2
     }).setOrigin(1,0).setAlpha(0);
@@ -356,28 +362,24 @@ talkTo(npc){
     ui._keys = keysTxt;
     ui._info = info;
 
-    this.repositionUIFrame(ui);
     return ui;
   }
 
   repositionUIFrame(ui = this.ui){
     if (!ui) return;
-    const pad = ui._pad ?? 16;
-    ui.x = this.scale.width - pad;
-    ui.y = pad;
+    ui.x = this.scale.width / 2;
+    ui.y = ui._pad ?? 10;
   }
 
   updateUI(){
     if (!this.ui) return;
-    // O2
     const ratio = Phaser.Math.Clamp(this.oxygen / this.oxygenMax, 0, 1);
     this.ui._o2fg.width = 2 + this.ui._o2bgW * ratio;
     this.ui._o2text.setText(`O₂: ${this.oxygen}`);
 
-    // Keys
-    const a = this.haveMomKey ? "✓" : "–";
-    const b = this.haveDadKey ? "✓" : "–";
-    this.ui._keys.setText(`Keys: ${a} / ${b}`);
+    const d = this.haveMomKey ? "✓" : "–";
+    const e = this.haveDadKey ? "✓" : "–";
+    this.ui._keys.setText(`Keys: D[${d}] E[${e}]`);
   }
 
   showInfo(msg, holdMs = 1500){
@@ -387,10 +389,8 @@ talkTo(npc){
     this.tweens.killTweensOf(t);
     t.setAlpha(0);
     this.tweens.add({
-      targets: t, alpha: 1, duration: 120, ease: "Quad.easeOut",
-      onComplete: () => {
-        this.tweens.add({ targets: t, alpha: 0, delay: holdMs, duration: 220, ease: "Quad.easeIn" });
-      }
+      targets:t, alpha:1, duration:120, ease:"Quad.easeOut",
+      onComplete: ()=> this.tweens.add({ targets:t, alpha:0, delay:holdMs, duration:220, ease:"Quad.easeIn" })
     });
   }
 
@@ -417,9 +417,7 @@ talkTo(npc){
     const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0).setDepth(3000);
     const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0).setDepth(3001);
     this.add.text(W/2,H/2-90,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
-      stroke:"#000", strokeThickness:4 })
-      .setOrigin(0.5).setScrollFactor(0).setDepth(3002);
-
+      stroke:"#000", strokeThickness:4 }).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
     const makeBtn = (txt, y, onClick)=>{
       const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(3002).setInteractive({ useHandCursor:true });
       const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff",
@@ -433,72 +431,60 @@ talkTo(npc){
   }
 
   // ====== Helpers / Assets ======
- makeSimpleTextures(){
-  const g = this.add.graphics();
-  const t = this.TILE;
+  makeSimpleTextures(){
+    const g = this.add.graphics();
+    const t = this.TILE;
 
-  if (!this.textures.exists("floor")){
-    // simple Sand-Fallback
-    g.clear(); g.fillStyle(0x083347,1); g.fillRect(0,0,t,t);
-    g.generateTexture("floor", t, t);
-  }
-
-  if (!this.textures.exists("wall")){
-    // hübscherer Wand-Fallback (siehe Weg B)
-    this._generatePrettyWall(g, t);
-  }
-
-  // Türen/NPCs/Exit weiterhin generieren (nur wenn nicht vorhanden)
-  if (!this.textures.exists("door1")){
-    g.clear(); g.fillStyle(0x1a5c3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door1", t, t);
-  }
-  if (!this.textures.exists("door2")){
-    g.clear(); g.fillStyle(0x5c1a3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door2", t, t);
-  }
-  if (!this.textures.exists("door_open")){
-    g.clear(); g.fillStyle(0x123a20, 1); g.fillRect(0,0,t,t);
-    g.lineStyle(6, 0x1eff7e, 0.9); g.strokeRect(8,8,t-16,t-16); g.generateTexture("door_open", t, t);
-  }
-  if (!this.textures.exists("exit")){
-    g.clear(); g.fillStyle(0x274b63, 1); g.fillRect(0,0,t,t);
-    g.lineStyle(6, 0xffffff, 0.9); g.strokeRect(10,10,t-20,t-20); g.generateTexture("exit", t, t);
-  }
-  if (!this.textures.exists("mom")){
-    g.clear(); g.fillStyle(0xffe08a, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("mom", t, t);
-  }
-  if (!this.textures.exists("dad")){
-    g.clear(); g.fillStyle(0x9ad0ff, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("dad", t, t);
+    if (!this.textures.exists("floor")){
+      g.clear(); g.fillStyle(0x083347,1); g.fillRect(0,0,t,t);
+      g.generateTexture("floor", t, t);
+    }
+    if (!this.textures.exists("wall")){
+      this._generatePrettyWall(g, t);
+    }
+    if (!this.textures.exists("door1")){
+      g.clear(); g.fillStyle(0x1a5c3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door1", t, t);
+    }
+    if (!this.textures.exists("door2")){
+      g.clear(); g.fillStyle(0x5c1a3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door2", t, t);
+    }
+    if (!this.textures.exists("door_open")){
+      g.clear(); g.fillStyle(0x123a20, 1); g.fillRect(0,0,t,t);
+      g.lineStyle(6, 0x1eff7e, 0.9); g.strokeRect(8,8,t-16,t-16); g.generateTexture("door_open", t, t);
+    }
+    if (!this.textures.exists("exit")){
+      g.clear(); g.fillStyle(0x274b63, 1); g.fillRect(0,0,t,t);
+      g.lineStyle(6, 0xffffff, 0.9); g.strokeRect(10,10,t-20,t-20); g.generateTexture("exit", t, t);
+    }
+    if (!this.textures.exists("mom")){
+      g.clear(); g.fillStyle(0xffe08a, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("mom", t, t);
+    }
+    if (!this.textures.exists("dad")){
+      g.clear(); g.fillStyle(0x9ad0ff, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("dad", t, t);
+    }
+    g.destroy();
   }
 
-  g.destroy();
-}
-
+  _generatePrettyWall(g, t){
+    g.clear(); g.fillStyle(0x1e2f3f,1); g.fillRect(0,0,t,t);
+    g.lineStyle(2,0x2b4760,0.9); g.strokeRect(1,1,t-2,t-2);
+    g.generateTexture("wall", t, t);
+  }
 
   updateBodySize(){
-  // etwas größere, aber runde Hitbox – verhindert visuelles „Reinschneiden“
-  const USE_CIRCLE_HITBOX = true;
-
-  // Verhältnis zur Sprite-Größe (höher = weniger Reinragen, aber enger in Gängen)
-  const HITBOX_SCALE_X = 0.68;  // vorher 0.38
-  const HITBOX_SCALE_Y = 0.72;  // vorher 0.52
-
-  const bw = this.player.displayWidth  * HITBOX_SCALE_X;
-  const bh = this.player.displayHeight * HITBOX_SCALE_Y;
-
-  if (USE_CIRCLE_HITBOX){
-    const r = Math.min(bw, bh) * 0.5;
-    this.player.body.setCircle(r);
-    // Kreis mittig unter das Sprite legen
-    this.player.body.setOffset(
-      (this.player.displayWidth  * 0.5) - r,
-      (this.player.displayHeight * 0.5) - r
-    );
-  } else {
-    // Rechteckig, aber größer als vorher
-    this.player.body.setSize(bw, bh, true); // true = automatisch zentrieren
+    const USE_CIRCLE_HITBOX = true;
+    const HITBOX_SCALE_X = 0.68;
+    const HITBOX_SCALE_Y = 0.72;
+    const bw=this.player.displayWidth*HITBOX_SCALE_X, bh=this.player.displayHeight*HITBOX_SCALE_Y;
+    if (USE_CIRCLE_HITBOX){
+      const r = Math.min(bw, bh) * 0.5;
+      this.player.body.setCircle(r);
+      this.player.body.setOffset((this.player.displayWidth*0.5)-r,(this.player.displayHeight*0.5)-r);
+    } else {
+      this.player.body.setSize(bw,bh,true);
+    }
   }
 }
 
-}
 
 
