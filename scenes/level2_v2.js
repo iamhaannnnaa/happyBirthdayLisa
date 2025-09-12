@@ -43,9 +43,16 @@ export default class Level2 extends Phaser.Scene {
     if (!this.textures.exists("diver")){
       this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
         frameWidth: 480, frameHeight: 480, endFrame: 15
-      });
+      }); 
     }
+    if (!this.textures.exists("wall")){
+    this.load.image("wall", "assets/walls/coral_88.png"); // <-- deine Wand
   }
+  if (!this.textures.exists("floor")){
+    this.load.image("floor", "assets/floors/sand_88.png"); // optional: Boden
+  }
+}
+  
 
   create(){
     // ------- Einstellungen -------
@@ -409,30 +416,46 @@ export default class Level2 extends Phaser.Scene {
   }
 
   // ====== Helpers / Assets ======
-  makeSimpleTextures(){
-    const g = this.add.graphics();
-    const t = this.TILE;
-    // floor
-    g.clear(); g.fillStyle(0x06202c, 1); g.fillRect(0,0,t,t); g.generateTexture("floor", t, t);
-    // wall
-    g.clear(); g.fillStyle(0x0b3a4e, 1); g.fillRect(0,0,t,t);
-    g.lineStyle(4, 0x0f5776, 0.9); g.strokeRect(2,2,t-4,t-4);
-    g.generateTexture("wall", t, t);
-    // doors
+ makeSimpleTextures(){
+  const g = this.add.graphics();
+  const t = this.TILE;
+
+  if (!this.textures.exists("floor")){
+    // simple Sand-Fallback
+    g.clear(); g.fillStyle(0x083347,1); g.fillRect(0,0,t,t);
+    g.generateTexture("floor", t, t);
+  }
+
+  if (!this.textures.exists("wall")){
+    // hübscherer Wand-Fallback (siehe Weg B)
+    this._generatePrettyWall(g, t);
+  }
+
+  // Türen/NPCs/Exit weiterhin generieren (nur wenn nicht vorhanden)
+  if (!this.textures.exists("door1")){
     g.clear(); g.fillStyle(0x1a5c3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door1", t, t);
+  }
+  if (!this.textures.exists("door2")){
     g.clear(); g.fillStyle(0x5c1a3a, 1); g.fillRect(0,0,t,t); g.generateTexture("door2", t, t);
+  }
+  if (!this.textures.exists("door_open")){
     g.clear(); g.fillStyle(0x123a20, 1); g.fillRect(0,0,t,t);
     g.lineStyle(6, 0x1eff7e, 0.9); g.strokeRect(8,8,t-16,t-16); g.generateTexture("door_open", t, t);
-    // exit
+  }
+  if (!this.textures.exists("exit")){
     g.clear(); g.fillStyle(0x274b63, 1); g.fillRect(0,0,t,t);
     g.lineStyle(6, 0xffffff, 0.9); g.strokeRect(10,10,t-20,t-20); g.generateTexture("exit", t, t);
-    // NPC-Icons
-    g.clear(); g.fillStyle(0xffe08a, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("mom", t, t);
-    g.clear(); g.fillStyle(0x9ad0ff, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("dad", t, t);
-    // Fallback Player
-    g.clear(); g.fillStyle(0xffffff, 1); g.fillRect(0,0,48,32); g.generateTexture("player", 48, 32);
-    g.destroy();
   }
+  if (!this.textures.exists("mom")){
+    g.clear(); g.fillStyle(0xffe08a, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("mom", t, t);
+  }
+  if (!this.textures.exists("dad")){
+    g.clear(); g.fillStyle(0x9ad0ff, 1); g.fillCircle(t/2, t/2, t*0.4); g.generateTexture("dad", t, t);
+  }
+
+  g.destroy();
+}
+
 
   updateBodySize(){
   // etwas größere, aber runde Hitbox – verhindert visuelles „Reinschneiden“

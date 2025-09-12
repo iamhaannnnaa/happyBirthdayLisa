@@ -49,6 +49,23 @@ export default class MenuScene extends Phaser.Scene {
   this.add.text(28, H-32, "⟵ Zurück (ESC)", { fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#a0c8ff" })
     .setOrigin(0,1).setAlpha(0.9);
   this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("SplashScene"));
+
+
+    // Reset-Button unten rechts
+  const resetButton = this.add.text(
+    this.sys.game.config.width - 20,   // X-Position (rechtsbündig)
+    this.sys.game.config.height - 20,  // Y-Position (unten)
+    "Spielstand zurücksetzen",
+    { fontSize: "20px", fill: "#ff0000" }
+  )
+  .setOrigin(1, 1)   // rechts unten verankern
+  .setInteractive({ useHandCursor: true })
+  .on("pointerdown", () => {
+    localStorage.clear();
+    // Optional: direkt Menü neu starten
+    this.scene.restart();
+    alert("Spielstand wurde zurückgesetzt!");
+  });
 }
 
 
