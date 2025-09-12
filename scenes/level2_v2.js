@@ -54,7 +54,7 @@ export default class Level2 extends Phaser.Scene {
   create(){
     // ------- Einstellungen -------
     const TILE         = 88;
-    const CAM_ZOOM     = 1.5;
+    const CAM_ZOOM     = 2;
     const PLAYER_SCALE = 0.18;
     this.TILE = TILE;
 
@@ -67,10 +67,10 @@ export default class Level2 extends Phaser.Scene {
       "#.######.#.#.#.####.#.######",
       "#....M#..#.#.#....#D###...##",
       "############.######.....#..#",
-      "#...#F#....###.##...###.####",
-      "#.#.#...##........#...#....#",
-      "#.#.######.######.#.#.######",
-      "#.#.............#.#.#......#",
+      "#.....#....###.##...###.####",
+      "#####..##........#...#....#",
+      "#..F######.######.#.#.######",
+      "#.##............#.#.#......#",
       "#......#.#.##.#.#.#...##.#E#",
       "######.#...##.#.#.####.#.#.#",
       "#......#.#....#.#......###X#",
@@ -197,7 +197,7 @@ export default class Level2 extends Phaser.Scene {
     this.haveDadKey = false; // Tür E
     this.gameOver   = false;
 
-    this.oxygenMax  = 40;
+    this.oxygenMax  = 52;
     this.oxygen     = this.oxygenMax;
 
     // --- NEU: schwebende O2-Leiste über dem Spieler ---
