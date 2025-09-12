@@ -457,11 +457,20 @@ this.physics.add.collider(this.player, this.sharks);
   }
 
   toggleBook(){
-    this.bookOpen = !this.bookOpen;
-    this.bookLayer.setVisible(this.bookOpen);
-    this.physics.world[this.bookOpen ? "pause" : "resume"]();
-    this.player.setVelocity(0,0);
-  }
+  const willOpen = !this.bookOpen;
+  this.bookOpen = willOpen;
+
+  // Sichtbarkeit umschalten
+  this.bookLayer.setVisible(willOpen);
+
+  // >>> NEU: Beim Öffnen Liste neu aufbauen
+  if (willOpen) this.refreshBook();
+
+  // Physik pausieren/fortsetzen & Spieler stoppen
+  this.physics.world[willOpen ? "pause" : "resume"]();
+  this.player.setVelocity(0,0);
+}
+
 
   refreshBook(){
     if (this.bookLayer) this.buildBookList(this.bookLayer);
