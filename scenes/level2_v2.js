@@ -108,15 +108,18 @@ export default class Level2 extends Phaser.Scene {
         const py = y*TILE + TILE/2;
 
         // Boden (damit Gänge sichtbar sind) – KEIN Diver-Hintergrund!
-        this.add.image(px, py, "floor").setDepth(-5);
+        const f = this.add.image(px, py, "floor").setDepth(-5);
+            f.setDisplaySize(this.TILE, this.TILE);
 
         if (ch === "#"){
           const w = this.walls.create(px, py, "wall");
-          if (w.body) {
-            w.body.setSize(TILE, TILE);
-            w.body.setOffset(-TILE/2 + w.displayOriginX, -TILE/2 + w.displayOriginY);
-          }
-          w.refreshBody();
+          w.setDisplaySize(this.TILE, this.TILE);   // << skaliert die Textur auf 88×88
+            w.setOrigin(0.5, 0.5);                    // (Standard, nur zur Sicherheit)
+            if (w.body){
+            w.body.setSize(this.TILE, this.TILE);
+            w.body.setOffset(-this.TILE/2 + w.displayOriginX, -this.TILE/2 + w.displayOriginY);
+            }
+            w.refreshBody();
         } else if (ch === "S"){
           startX = px; startY = py;
         } else if (ch === "M"){
@@ -197,7 +200,7 @@ export default class Level2 extends Phaser.Scene {
       delay:1000, loop:true, callback: ()=>{
         if (this.gameOver) return;
         this.oxygen = Math.max(0, this.oxygen-1);
-        this.updateUI();
+        this.UI();
         if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
       }
     });
