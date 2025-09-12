@@ -1,6 +1,6 @@
 // scenes/level3.js
 const Phaser = window.Phaser;
-const L3_VERSION = "L3-openworld-2025-09-12-e"; // + PNG-Haie, Frame folgt Spieler
+const L3_VERSION = "L3-openworld-2025-09-12-f"; // + Foto-Overlay & robustes Shooting
 
 export default class Level3 extends Phaser.Scene {
   constructor(){ super("Level3"); }
@@ -20,7 +20,7 @@ export default class Level3 extends Phaser.Scene {
     this.load.image("shark_bull",        base + "bullenhai.png");
     this.load.image("shark_thresher",    base + "Fuchshai.png");
     this.load.image("shark_whale",       base + "Walhai.png");
-    this.load.image("shark_blacktip",    base + "Schwarzspitzen.png");// prüf ggf. exakten Namen
+    this.load.image("shark_blacktip",    base + "Schwarzspitzen.png");  // prüf ggf. exakten Namen
     this.load.image("shark_mako",        base + "makohai.png");
     this.load.image("shark_blue",        base + "blauhai.png");
     this.load.image("shark_zebra",       base + "zebrahai.png");
@@ -86,6 +86,7 @@ export default class Level3 extends Phaser.Scene {
       space:"SPACE", p:"P", b:"B", esc:"ESC"
     });
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
+    this.input.keyboard.addCapture(['SPACE', 'P']); // <-- wichtig
 
     // --- Haie spawnen: PNG falls vorhanden, sonst Fallback-Kreis ---
     this.sharks = this.physics.add.group();
@@ -126,7 +127,7 @@ export default class Level3 extends Phaser.Scene {
     this.flash = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 0xffffff, 0)
       .setScrollFactor(0).setDepth(1200);
 
-    // Foto-Input
+    // Foto-Input (Event; Fallback via update())
     this.lastShotAt = 0;
     const shoot = ()=> this.takePhoto();
     this.input.keyboard.on("keydown-SPACE", shoot);
@@ -138,7 +139,7 @@ export default class Level3 extends Phaser.Scene {
     }).setScrollFactor(0).setDepth(9000);
     this.updateHud();
 
-    // --- Capture-Meldung oben rechts ---
+    // --- Capture-Meldung oben rechts (alte Mini-Meldung; optional)
     this.capturePanel = this.makeCapturePanel();
 
     // --- Logbuch ---
@@ -154,11 +155,8 @@ export default class Level3 extends Phaser.Scene {
     // Resize
     this.scale.on("resize", () => this.repositionUI());
 
-    // --- Weiße Shot-Toast-Meldung unten ---
-this.shotToast = this.makeShotToast();
-this.shotQueue = [];
-this.shotToastBusy = false;
-
+    // --- Foto-Overlay (zentral, garantiert sichtbar) ---
+    this.photoOverlay = this.makePhotoOverlay();
   }
 
   // ================= Update =================
@@ -218,73 +216,76 @@ this.shotToastBusy = false;
     // weich nachführen
     this.photoFrame.x += (tx - this.photoFrame.x) * 0.25;
     this.photoFrame.y += (ty - this.photoFrame.y) * 0.25;
-    this.photoDot?.setPosition(this.photoFrame.x, this.photoFrame.y);
-  }
+    if (this.photoDot) this.photoDot.setPosition(this.photoFrame.x, this.photoFrame.y);
 
-  // ================= Foto-Logik =================
-// ================= Foto-Logik =================
-takePhoto(){
-  const now = this.time.now || performance.now();
-  if (now - this.lastShotAt < 500) return; // kurzer Cooldown
-  this.lastShotAt = now;
-
-  // Blitz (HUD)
-  this.flash.setAlpha(0.8);
-  this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
-
-  // Frame-Grenzen (der Frame hängt an der Taucherin)
-  const left   = this.photoFrame.x - this.frameW/2;
-  const right  = this.photoFrame.x + this.frameW/2;
-  const top    = this.photoFrame.y - this.frameH/2;
-  const bottom = this.photoFrame.y + this.frameH/2;
-
-  // Alle Haie, die JETZT im Frame sind (nur dieser Moment zählt)
-  const inFrame = [];
-  this.sharks.children.iterate(s=>{
-    if (!s) return;
-    if (s.x >= left && s.x <= right && s.y >= top && s.y <= bottom) inFrame.push(s);
-  });
-
-  if (inFrame.length === 0){
-    this.showShotMessages(["Kein Hai im Bild"]);
-    return;
-  }
-
-  // Pro Art nur einmal zählen (falls mehrere gleiche im Frame sind)
-  const seen = new Set();
-  const newCaught = [];
-  const already   = [];
-  for (const s of inFrame){
-    const id = s.getData("id");
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const name = s.getData("name");
-    if (!this.dex.caught[id]) {
-      this.dex.caught[id] = true;
-      newCaught.push(name);
-    } else {
-      already.push(name);
+    // Fallback: Foto über Polling + Cooldown (falls Keydown-Event nicht triggert)
+    const now = this.time.now || performance.now();
+    if ((this.keys.space.isDown || this.keys.p.isDown) && (now - this.lastShotAt > 500)) {
+      this.takePhoto();
     }
   }
 
-  // Fortschritt speichern/anzeigen
-  if (newCaught.length > 0){
-    this.saveDex();
-    this.updateHud();
-    if (this.bookOpen) this.refreshBook();
-  }
+  // ================= Foto-Logik =================
+  takePhoto(){
+    const now = this.time.now || performance.now();
+    if (now - this.lastShotAt < 500) return; // kurzer Cooldown
+    this.lastShotAt = now;
 
-  // Weiße Meldungen unten (nacheinander)
-  const msgs = [];
-  for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
-  if (newCaught.length === 0){
-    // keine neuen – zeig, was drin war
-    for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
-    if (already.length === 0) msgs.push("Kein Hai im Bild"); // theoretisch nicht erreichbar
-  }
-  this.showShotMessages(msgs);
-}
+    // Blitz (HUD)
+    this.flash.setAlpha(0.8);
+    this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
 
+    // Frame-Grenzen (der Frame hängt an der Taucherin)
+    const left   = this.photoFrame.x - this.frameW/2;
+    const right  = this.photoFrame.x + this.frameW/2;
+    const top    = this.photoFrame.y - this.frameH/2;
+    const bottom = this.photoFrame.y + this.frameH/2;
+
+    // Alle Haie, die JETZT im Frame sind (nur dieser Moment zählt)
+    const inFrame = [];
+    this.sharks.children.iterate(s=>{
+      if (!s) return;
+      if (s.x >= left && s.x <= right && s.y >= top && s.y <= bottom) inFrame.push(s);
+    });
+
+    if (inFrame.length === 0){
+      this.showPhotoOverlay(["Kein Hai im Bild"]);
+      return;
+    }
+
+    // Pro Art nur einmal zählen (falls mehrere gleiche im Frame sind)
+    const seen = new Set();
+    const newCaught = [];
+    const already   = [];
+    for (const s of inFrame){
+      const id = s.getData("id");
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const name = s.getData("name");
+      if (!this.dex.caught[id]) {
+        this.dex.caught[id] = true;
+        newCaught.push(name);
+      } else {
+        already.push(name);
+      }
+    }
+
+    // Fortschritt speichern/anzeigen
+    if (newCaught.length > 0){
+      this.saveDex();
+      this.updateHud();
+      if (this.bookOpen) this.refreshBook();
+    }
+
+    // Meldungen im Overlay
+    const msgs = [];
+    for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
+    if (newCaught.length === 0){
+      for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
+      if (already.length === 0) msgs.push("Kein Hai im Bild");
+    }
+    this.showPhotoOverlay(msgs);
+  }
 
   // ================= UI / HUD =================
   updateHud(){
@@ -356,85 +357,85 @@ takePhoto(){
     return layer;
   }
 
- buildBookList(layer){
-  const list = layer._list;
-  list.removeAll(true);
+  buildBookList(layer){
+    const list = layer._list;
+    list.removeAll(true);
 
-  const total = this.SPECIES.length;
-  let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
+    const total = this.SPECIES.length;
+    let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
 
-  // Fortschritt (wie bisher)
-  const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 52,
-    `Fortschritt: ${have} / ${total}`, {
-      fontFamily:"system-ui", fontSize:"18px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
-    }).setOrigin(0.5,0);
-  list.add(prog);
+    // Fortschritt (wie bisher)
+    const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 52,
+      `Fortschritt: ${have} / ${total}`, {
+        fontFamily:"system-ui", fontSize:"18px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
+      }).setOrigin(0.5,0);
+    list.add(prog);
 
-  // Einträge (2 Spalten) – mit Thumbnails
-  const colW  = (layer._panel.width - 56) / 2;
-  const rowH  = 58;   // höher wegen Bildchen
-  const padL  = 10;   // linker Innenabstand je Zelle
-  const thumbH = 36;  // Zielhöhe der Thumbnails
-  const gap   = 10;   // Abstand Bild -> Name
-  const nameW = 220;  // Breite bis zum Status
+    // Einträge (2 Spalten) – mit Thumbnails
+    const colW  = (layer._panel.width - 56) / 2;
+    const rowH  = 58;   // höher wegen Bildchen
+    const padL  = 10;   // linker Innenabstand je Zelle
+    const thumbH = 36;  // Zielhöhe der Thumbnails
+    const gap   = 10;   // Abstand Bild -> Name
+    const nameW = 220;  // Breite bis zum Status
 
-  let idx = 0;
-  for (const s of this.SPECIES){
-    const caught = !!this.dex.caught[s.id];
-    const col = idx % 2;
-    const row = Math.floor(idx / 2);
-    const baseX = col * colW;
-    const baseY = 40 + row * rowH;
+    let idx = 0;
+    for (const s of this.SPECIES){
+      const caught = !!this.dex.caught[s.id]; // <-- FIX: keine extra-Klammer
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const baseX = col * colW;
+      const baseY = 40 + row * rowH;
 
-    let nameX;
+      let nameX;
 
-    if (this.textures.exists(s.tex)){
-      // PNG-Thumbnail
-      const img = this.add.image(baseX + padL, baseY + 16, s.tex).setOrigin(0,0.5);
-      const src = this.textures.get(s.tex).getSourceImage?.();
-      const scale = (src && src.height) ? (thumbH / src.height) : 1;
-      img.setScale(scale);
-      list.add(img);
-      nameX = baseX + padL + (src ? src.width * scale : thumbH) + gap;
-    } else {
-      // Fallback: farbiger Punkt
-      const dot = this.add.circle(baseX + padL + 18, baseY + 16, 12, s.color);
-      list.add(dot);
-      nameX = baseX + padL + 18 + 12 + gap;
+      if (this.textures.exists(s.tex)){
+        // PNG-Thumbnail
+        const img = this.add.image(baseX + padL, baseY + 16, s.tex).setOrigin(0,0.5);
+        const tex = this.textures.get(s.tex);
+        const src = tex && tex.getSourceImage ? tex.getSourceImage() : null; // <-- FIX: kein ?.()
+        const scale = (src && src.height) ? (thumbH / src.height) : 1;
+        img.setScale(scale);
+        list.add(img);
+        nameX = baseX + padL + (src ? src.width * scale : thumbH) + gap;
+      } else {
+        // Fallback: farbiger Punkt
+        const dot = this.add.circle(baseX + padL + 18, baseY + 16, 12, s.color);
+        list.add(dot);
+        nameX = baseX + padL + 18 + 12 + gap;
+      }
+
+      // Name
+      const name = this.add.text(nameX, baseY, s.name, {
+        fontFamily:"system-ui", fontSize:"18px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
+      });
+      list.add(name);
+
+      // Status (✓ / –)
+      const status = this.add.text(nameX + nameW, baseY, caught ? "✓" : "–", {
+        fontFamily:"system-ui", fontSize:"18px",
+        color: caught ? "#a7f5a1" : "#ffc0c0", stroke:"#000", strokeThickness:3
+      });
+      list.add(status);
+
+      idx++;
     }
 
-    // Name
-    const name = this.add.text(nameX, baseY, s.name, {
-      fontFamily:"system-ui", fontSize:"18px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
+    // Reset-Button (wie bisher)
+    const btn = this.add.rectangle(layer._panel.getBottomCenter().x, layer._panel.getBottomCenter().y - 28, 200, 40, 0x0d2e46, 1)
+      .setInteractive({useHandCursor:true});
+    const btnt = this.add.text(btn.x, btn.y, "Fortschritt zurücksetzen", {
+      fontFamily:"system-ui", fontSize:"16px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
+    }).setOrigin(0.5);
+    btn.on("pointerover", ()=> btn.setFillStyle(0x134062,1));
+    btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));
+    btn.on("pointerup", ()=>{
+      this.dex.caught = {};
+      this.saveDex(); this.updateHud(); this.refreshBook();
     });
-    list.add(name);
 
-    // Status (✓ / –)
-    const status = this.add.text(nameX + nameW, baseY, caught ? "✓" : "–", {
-      fontFamily:"system-ui", fontSize:"18px",
-      color: caught ? "#a7f5a1" : "#ffc0c0", stroke:"#000", strokeThickness:3
-    });
-    list.add(status);
-
-    idx++;
+    list.add(btn); list.add(btnt);
   }
-
-  // Reset-Button (wie bisher)
-  const btn = this.add.rectangle(layer._panel.getBottomCenter().x, layer._panel.getBottomCenter().y - 28, 200, 40, 0x0d2e46, 1)
-    .setInteractive({useHandCursor:true});
-  const btnt = this.add.text(btn.x, btn.y, "Fortschritt zurücksetzen", {
-    fontFamily:"system-ui", fontSize:"16px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
-  }).setOrigin(0.5);
-  btn.on("pointerover", ()=> btn.setFillStyle(0x134062,1));
-  btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));
-  btn.on("pointerup", ()=>{
-    this.dex.caught = {};
-    this.saveDex(); this.updateHud(); this.refreshBook();
-  });
-
-  list.add(btn); list.add(btnt);
-}
-
 
   toggleBook(){
     this.bookOpen = !this.bookOpen;
@@ -447,21 +448,24 @@ takePhoto(){
     if (this.bookLayer) this.buildBookList(this.bookLayer);
   }
 
- repositionUI(){
-  const pad = 16;
-  this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
-  if (this.bookBtn && this.bookBtn._label){
-    const x = this.scale.width - (110 + pad);
-    const y = this.scale.height - (40 + pad);
-    this.bookBtn.setPosition(x, y);
-    this.bookBtn._label.setPosition(x, y);
+  repositionUI(){
+    const pad = 16;
+    this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
+    if (this.bookBtn && this.bookBtn._label){
+      const x = this.scale.width - (110 + pad);
+      const y = this.scale.height - (40 + pad);
+      this.bookBtn.setPosition(x, y);
+      this.bookBtn._label.setPosition(x, y);
+    }
+    // Foto-Overlay mittig & Größe aktualisieren
+    if (this.photoOverlay){
+      this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+      if (this.photoOverlay._dim){
+        this.photoOverlay._dim.width  = this.scale.width;
+        this.photoOverlay._dim.height = this.scale.height;
+      }
+    }
   }
-  // Toast unten neu ausrichten
-  if (this.shotToast){
-    this.shotToast.setPosition(this.scale.width/2, this.scale.height - (40 + pad));
-  }
-}
-
 
   // ================= Utils =================
   makeDiverAnimations(){
@@ -470,8 +474,6 @@ takePhoto(){
       this.anims.create({ key:"diver_idle", frames:this.anims.generateFrameNumbers("diver",{start:0,end:1}), frameRate:2, repeat:-1 });
     }
   }
-
-  
 
   ensureBigDotTexture(key, color, size){
     if (this.textures.exists(key)) return;
@@ -485,23 +487,21 @@ takePhoto(){
   }
 
   // === WICHTIG: PNG-Shark-Sprite erzeugen (Skalierung + Hitbox) ===
- // statt optional chaining auf Funktionsaufruf:
-createSharkSprite(x, y, key){
-  const spr = this.physics.add.sprite(x, y, key);
-  const tex = this.textures.get(key);
-  const img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
-  const targetH = 115;
-  const scale = (img && img.height) ? (targetH / img.height) : 1;
-  spr.setScale(scale);
+  createSharkSprite(x, y, key){
+    const spr = this.physics.add.sprite(x, y, key);
+    const tex = this.textures.get(key);
+    const img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
+    const targetH = 115;
+    const scale = (img && img.height) ? (targetH / img.height) : 1;
+    spr.setScale(scale);
 
-  if (key.startsWith("shark_") && img){
-    spr.body.setSize(img.width * 0.55 * scale, img.height * 0.45 * scale, true);
-  } else {
-    spr.body.setCircle(50 * scale, 10 * scale, 10 * scale);
+    if (key.startsWith("shark_") && img){
+      spr.body.setSize(img.width * 0.55 * scale, img.height * 0.45 * scale, true);
+    } else {
+      spr.body.setCircle(50 * scale, 10 * scale, 10 * scale);
+    }
+    return spr;
   }
-  return spr;
-}
-
 
   assignRandomVelocity(spr, speed){
     const ang = Math.random()*Math.PI*2;
@@ -532,147 +532,152 @@ createSharkSprite(x, y, key){
 
   // ===== Tile-Generatoren: nahtlose Wasser-Texturen =====
   makeSeamlessDotsTexture(key, size, opts = {}){
-  if (this.textures.exists(key)) return;
+    if (this.textures.exists(key)) return;
 
-  // <-- wichtig: Optionen sauber herausziehen (mit Defaults)
-  const {
-    bg = 0x07263a,
-    dotColor = 0x0e4163,
-    dotAlpha = 0.10,
-    dotCount = 220,
-    dotMin = 1,
-    dotMax = 2
-  } = opts;
+    const {
+      bg = 0x07263a,
+      dotColor = 0x0e4163,
+      dotAlpha = 0.10,
+      dotCount = 220,
+      dotMin = 1,
+      dotMax = 2
+    } = opts;
 
-  const tex = this.textures.createCanvas(key, size, size);
-  const ctx = tex.getContext();
+    const tex = this.textures.createCanvas(key, size, size);
+    const ctx = tex.getContext();
 
-  ctx.fillStyle = `#${bg.toString(16).padStart(6,"0")}`;
-  ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = `#${bg.toString(16).padStart(6,"0")}`;
+    ctx.fillRect(0,0,size,size);
 
-  const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
+    const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
 
-  ctx.fillStyle = rgba(dotColor, dotAlpha);
-  for (let i=0;i<dotCount;i++){
-    const x = Math.random()*size, y = Math.random()*size;
-    const r = dotMin + Math.random()*(dotMax-dotMin);
-    for (const dx of [-size,0,size]) for (const dy of [-size,0,size]){
-      ctx.beginPath(); ctx.arc(x+dx, y+dy, r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = rgba(dotColor, dotAlpha);
+    for (let i=0;i<dotCount;i++){
+      const x = Math.random()*size, y = Math.random()*size;
+      const r = dotMin + Math.random()*(dotMax-dotMin);
+      for (const dx of [-size,0,size]) for (const dy of [-size,0,size]){
+        ctx.beginPath(); ctx.arc(x+dx, y+dy, r, 0, Math.PI*2); ctx.fill();
+      }
     }
+
+    ctx.globalAlpha = 0.35;
+    ctx.drawImage(tex.getSourceImage(), -1, 0);
+    ctx.drawImage(tex.getSourceImage(),  1, 0);
+    ctx.drawImage(tex.getSourceImage(),  0,-1);
+    ctx.drawImage(tex.getSourceImage(),  0, 1);
+    ctx.globalAlpha = 1;
+
+    tex.refresh();
   }
 
-  ctx.globalAlpha = 0.35;
-  ctx.drawImage(tex.getSourceImage(), -1, 0);
-  ctx.drawImage(tex.getSourceImage(),  1, 0);
-  ctx.drawImage(tex.getSourceImage(),  0,-1);
-  ctx.drawImage(tex.getSourceImage(),  0, 1);
-  ctx.globalAlpha = 1;
+  makeSeamlessBlobsTexture(key, size, opts = {}){
+    if (this.textures.exists(key)) return;
 
-  tex.refresh();
-}
-makeSeamlessBlobsTexture(key, size, opts = {}){
-  if (this.textures.exists(key)) return;
+    const {
+      blobColor = 0x1a5b86,
+      blobAlpha = 0.08,
+      blobCount = 70,
+      minR = 16,
+      maxR = 60
+    } = opts;
 
-  // <-- wichtig: Optionen sauber herausziehen (mit Defaults)
-  const {
-    blobColor = 0x1a5b86,
-    blobAlpha = 0.08,
-    blobCount = 70,
-    minR = 16,
-    maxR = 60
-  } = opts;
+    const tex = this.textures.createCanvas(key, size, size);
+    const ctx = tex.getContext();
+    const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
 
-  const tex = this.textures.createCanvas(key, size, size);
-  const ctx = tex.getContext();
-  const rgba = (hex, a=1)=> `rgba(${(hex>>16)&255},${(hex>>8)&255},${hex&255},${a})`;
+    ctx.clearRect(0,0,size,size);
 
-  ctx.clearRect(0,0,size,size);
+    for (let i=0;i<blobCount;i++){
+      const x = Math.random()*size, y = Math.random()*size;
+      const r = minR + Math.random()*(maxR-minR);
 
-  for (let i=0;i<blobCount;i++){
-    const x = Math.random()*size, y = Math.random()*size;
-    const r = minR + Math.random()*(maxR-minR);
+      const drawBlob = (bx,by)=>{
+        const grad = ctx.createRadialGradient(bx,by, r*0.2, bx,by, r);
+        grad.addColorStop(0, rgba(blobColor, blobAlpha));
+        grad.addColorStop(1, rgba(blobColor, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI*2); ctx.fill();
+      };
 
-    const drawBlob = (bx,by)=>{
-      const grad = ctx.createRadialGradient(bx,by, r*0.2, bx,by, r);
-      grad.addColorStop(0, rgba(blobColor, blobAlpha));
-      grad.addColorStop(1, rgba(blobColor, 0));
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI*2); ctx.fill();
-    };
+      for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) drawBlob(x+dx,y+dy);
+    }
 
-    for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) drawBlob(x+dx,y+dy);
+    ctx.globalAlpha = 0.06; ctx.fillStyle = rgba(0xffffff, 1);
+    for (let i=0;i<40;i++){
+      const x = Math.random()*size, y = Math.random()*size;
+      const w = 20+Math.random()*60, h = 2+Math.random()*3;
+      for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) ctx.fillRect(x+dx, y+dy, w, h);
+    }
+    ctx.globalAlpha = 1;
+
+    tex.refresh();
   }
 
-  ctx.globalAlpha = 0.06; ctx.fillStyle = rgba(0xffffff, 1);
-  for (let i=0;i<40;i++){
-    const x = Math.random()*size, y = Math.random()*size;
-    const w = 20+Math.random()*60, h = 2+Math.random()*3;
-    for (const dx of [-size,0,size]) for (const dy of [-size,0,size]) ctx.fillRect(x+dx, y+dy, w, h);
+  // ===== Zentrales Foto-Overlay (dim + Panel) =====
+  makePhotoOverlay(){
+    const W = this.scale.width, H = this.scale.height;
+    const cont = this.add.container(W/2, H/2)
+      .setScrollFactor(0)
+      .setDepth(20000) // ganz oben
+      .setAlpha(0)
+      .setVisible(false);
+
+    // Dimmer
+    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0.5);
+    // Panel
+    const panelW = Math.min(560, W*0.9);
+    const panelH = 140;
+    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
+    panel.setStrokeStyle(3, 0xaad4ff, 1);
+
+    const txt = this.add.text(0, 0, "", {
+      fontFamily:"system-ui, sans-serif",
+      fontSize:"20px",
+      color:"#103a5c",
+      align:"center",
+      wordWrap: { width: panelW - 48 }
+    }).setOrigin(0.5);
+
+    cont.add([dim, panel, txt]);
+    cont._dim = dim;
+    cont._panel = panel;
+    cont._text = txt;
+    return cont;
   }
-  ctx.globalAlpha = 1;
 
-  tex.refresh();
-}
+  showPhotoOverlay(lines){
+    const cont = this.photoOverlay;
+    if (!cont) return;
 
+    // Text aufbereiten
+    const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    cont._text.setText(msg);
 
+    // Panelhöhe dynamisch (mehrere Zeilen → größer)
+    const baseH = 120;
+    const extra = Math.max(0, cont._text.height - 60);
+    cont._panel.height = baseH + extra;
 
-  // ===== Unten-Toast (weiße Info) =====
-makeShotToast(){
-  const pad = 16;
-  const cont = this.add.container(this.scale.width/2, this.scale.height - (40 + pad))
-    .setScrollFactor(0).setDepth(9900).setAlpha(0);
+    // Dim auf aktuelle Fenstergröße bringen
+    cont._dim.width  = this.scale.width;
+    cont._dim.height = this.scale.height;
 
-  const bg = this.add.rectangle(0, 0, Math.min(640, this.scale.width*0.9), 40, 0x000000, 0.35)
-    .setOrigin(0.5);
+    cont.setPosition(this.scale.width/2, this.scale.height/2);
+    cont.setVisible(true);
+    cont.setAlpha(0);
 
-  const txt = this.add.text(0, 0, "", {
-    fontFamily:"system-ui, sans-serif",
-    fontSize:"18px",
-    color:"#ffffff",
-    stroke:"#000000",
-    strokeThickness:3
-  }).setOrigin(0.5);
-
-  cont.add([bg, txt]);
-  cont._bg = bg;
-  cont._text = txt;
-  return cont;
-}
-
-_showNextShotToast(){
-  const msg = this.shotQueue.shift();
-  if (!msg){ this.shotToastBusy = false; return; }
-  this.shotToastBusy = true;
-
-  const p = this.shotToast;
-  p._text.setText(msg);
-
-  // Hintergrundbreite dynamisch an Text anpassen
-  const w = Math.min(this.scale.width * 0.9, Math.max(260, p._text.width + 48));
-  p._bg.width = w;
-
-  p.setAlpha(0);
-  this.tweens.add({
-    targets: p, alpha: 1, duration: 120, ease: "Quad.easeOut",
-    onComplete: () => {
-      this.time.delayedCall(1000, () => {
-        this.tweens.add({
-          targets: p, alpha: 0, duration: 220, ease: "Quad.easeIn",
-          onComplete: () => this._showNextShotToast()
+    // Einblenden, kurz halten, ausblenden
+    this.tweens.add({
+      targets: cont, alpha: 1, duration: 120, ease: "Quad.easeOut",
+      onComplete: () => {
+        this.time.delayedCall(1100, () => {
+          this.tweens.add({
+            targets: cont, alpha: 0, duration: 220, ease: "Quad.easeIn",
+            onComplete: () => cont.setVisible(false)
+          });
         });
-      });
-    }
-  });
+      }
+    });
+  }
 }
-
-showShotMessages(msgArray){
-  for (const m of msgArray) this.shotQueue.push(m);
-  if (!this.shotToastBusy) this._showNextShotToast();
-}
-
-
-}
-
-
-
 
