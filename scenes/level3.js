@@ -879,27 +879,49 @@ Drücke [SPACE], um deine Reise zu beginnen!`;
       wordWrap:{ width: panelW - 60 }
     }).setOrigin(0.5);
 
-    let icon;
-    if (this.textures.exists("gift_icon")){
-      icon = this.add.image(0, 28, "gift_icon").setOrigin(0.5).setInteractive({useHandCursor:true});
-      const tex = this.textures.get("gift_icon").getSourceImage();
-      const scale = tex ? Math.min(1.0, (panelW*0.35)/tex.width) : 1;
-      icon.setScale(scale);
-    } else {
-      icon = this.add.rectangle(0, 28, 140, 140, 0xff2d55, 1)
-        .setStrokeStyle(6, 0xffffff, 1)
-        .setInteractive({useHandCursor:true});
-      this.add.text(0, 28, "GESCHENK", {
-        fontFamily:"system-ui", fontSize:"18px", color:"#ffffff"
-      }).setOrigin(0.5);
-    }
-    icon.on("pointerup", ()=> this.openRewardImage());
+   // Geschenk-Icon (klickbar)
+let icon;
+if (this.textures.exists("gift_icon")){
+  icon = this.add.image(0, 28, "gift_icon").setOrigin(0.5);
+  // Interaktiv + zuverlässige Klicks
+  icon.setInteractive({ useHandCursor: true, pixelPerfect: true });
 
-    const hint = this.add.text(0, panelH*0.30 - 16, "Tippe/klicke auf das Geschenk", {
-      fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#355e7a"
-    }).setOrigin(0.5);
+  // sanfter Bounce
+  const bounce = this.tweens.add({
+    targets: icon,
+    y: icon.y - 6,
+    yoyo: true, repeat: -1, duration: 900, ease: "Sine.inOut"
+  });
 
-    cont.add([dim, panel, txt, icon, hint]);
+  // >>> Öffnen bei pointerdown (robuster auf Mobile)
+  icon.on("pointerdown", () => this.openRewardImage());
+
+  // Optional: während Hover/Tap Animation pausieren, damit nichts “wegrutscht”
+  icon.on("pointerover", () => bounce.pause());
+  icon.on("pointerout",  () => bounce.resume());
+} else {
+  // Fallback
+  icon = this.add.rectangle(0, 28, 140, 140, 0xff2d55, 1)
+    .setStrokeStyle(6, 0xffffff, 1)
+    .setInteractive({ useHandCursor:true });
+  this.add.text(0, 28, "GESCHENK", {
+    fontFamily:"system-ui", fontSize:"18px", color:"#ffffff"
+  }).setOrigin(0.5);
+  icon.on("pointerdown", () => this.openRewardImage());
+}
+
+// >>> Bonus: Klick aufs Panel (oder Text) öffnet ebenfalls das Geschenk
+panel.setInteractive({ useHandCursor:true });
+panel.on("pointerdown", () => this.openRewardImage());
+txt.setInteractive({ useHandCursor:true });
+txt.on("pointerdown", () => this.openRewardImage());
+
+const hint = this.add.text(0, panelH*0.30 - 16, "Tippe/klicke auf das Geschenk", {
+  fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#355e7a"
+}).setOrigin(0.5);
+
+cont.add([dim, panel, txt, icon, hint]);
+
     cont._dim = dim; cont._panel = panel;
     return cont;
   }
