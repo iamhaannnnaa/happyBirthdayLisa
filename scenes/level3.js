@@ -24,7 +24,10 @@ export default class Level3 extends Phaser.Scene {
     this.load.image("shark_mako",        base + "makohai.png");
     this.load.image("shark_blue",        base + "blauhai.png");
     this.load.image("shark_zebra",       base + "zebrahai.png");
-  }
+    // >>> NEU: Katzenhaie
+    this.load.image("shark_nala", base + "Nala.png"); // Achtung: N groß
+    this.load.image("shark_luna", base + "Luna.png"); // Achtung: L groß
+    }
 
   create(){
     console.log("[Level3] geladen:", L3_VERSION);
@@ -60,7 +63,9 @@ export default class Level3 extends Phaser.Scene {
       { id:"blacktip",    name:"Schwarzspitzen", color:0x9fd1bf, tex:"shark_blacktip"    },
       { id:"mako",        name:"Makohai",        color:0x8fb8ff, tex:"shark_mako"        },
       { id:"blue",        name:"Blauhai",        color:0x6aa6ff, tex:"shark_blue"        },
-      { id:"zebra",       name:"Zebrahai",       color:0xe6d18f, tex:"shark_zebra"       }
+      { id:"zebra",       name:"Zebrahai",       color:0xe6d18f, tex:"shark_zebra"       },
+      { id:"nala", name:"Nala", color:0xb7c9ff, tex:"shark_nala" }, // Farbe nur Fallback
+      { id:"luna", name:"Luna", color:0xffc4f5, tex:"shark_luna" },
     ];
     for (const s of this.SPECIES) this.ensureBigDotTexture("dot_big_"+s.id, s.color, 120);
 
@@ -96,7 +101,7 @@ this.sharks = this.physics.add.group();
 
 // Anzahl: 1–2 pro Art (mindestens einer)
 for (const s of this.SPECIES){
-  const count = Phaser.Math.Between(1, 3); // min=1, max=2
+  const count = Phaser.Math.Between(1, 2); // min=1, max=2
   for (let i = 0; i < count; i++) {
     // Größere Suchfläche (keine 200px Ränder mehr, nur kleine Polster)
     const x = 80 + Math.random()*(this.WORLD_W - 160);
@@ -506,24 +511,35 @@ if (!introAlreadySeen) {
     if (this.bookLayer) this.buildBookList(this.bookLayer);
   }
 
-  repositionUI(){
-    const pad = 16;
-    this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
-    if (this.bookBtn && this.bookBtn._label){
-      const x = this.scale.width - (110 + pad);
-      const y = this.scale.height - (40 + pad);
-      this.bookBtn.setPosition(x, y);
-      this.bookBtn._label.setPosition(x, y);
-    }
-    // Foto-Overlay mittig & Größe aktualisieren
-    if (erlay){
-      this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
-      if (this.photoOverlay._dim){
-        erlay._dim.width  = this.scale.width;
-        erlay._dim.height = this.scale.height;
-      }
+repositionUI(){
+  const pad = 16;
+  this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
+  if (this.bookBtn && this.bookBtn._label){
+    const x = this.scale.width - (110 + pad);
+    const y = this.scale.height - (40 + pad);
+    this.bookBtn.setPosition(x, y);
+    this.bookBtn._label.setPosition(x, y);
+  }
+
+  // Foto-Overlay
+  if (this.photoOverlay){
+    this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+    if (this.photoOverlay._dim){
+      this.photoOverlay._dim.width  = this.scale.width;
+      this.photoOverlay._dim.height = this.scale.height;
     }
   }
+
+  // Intro-Overlay (falls offen)
+  if (this.introOverlay){
+    this.introOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+    if (this.introOverlay._dim){
+      this.introOverlay._dim.width  = this.scale.width;
+      this.introOverlay._dim.height = this.scale.height;
+    }
+  }
+}
+
 
   // ================= Utils =================
   makeDiverAnimations(){
