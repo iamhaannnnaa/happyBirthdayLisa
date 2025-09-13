@@ -27,13 +27,17 @@ export default class Level3 extends Phaser.Scene {
     // >>> NEU: Katzenhaie
     this.load.image("shark_nala", base + "Nala.png"); // Achtung: N groß
     this.load.image("shark_luna", base + "Luna.png"); // Achtung: L groß
-    }
+
+    // >>> NEU: Geschenk-Assets (deine Pfade & Namen)
+    this.load.image("gift_icon",   "assets/objects/Gift.png");
+    this.load.image("gift_reward", "assets/objects/Opfer.jpg");
+  }
 
   create(){
     console.log("[Level3] geladen:", L3_VERSION);
 
     this.introKey = "l3_intro_seen_v1";
-
+    this.giftKey  = "l3_gift_shown_v1"; // Einmal-Pro-Gerät für Geschenk-Overlay
 
     // --- Welt & Kamera ---
     this.WORLD_W = 5000;
@@ -96,34 +100,32 @@ export default class Level3 extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
     this.input.keyboard.addCapture(['SPACE', 'P']); // <-- wichtig
 
-// --- Haie spawnen: weniger, aber mind. 1 pro Art ---
-this.sharks = this.physics.add.group();
+    // --- Haie spawnen: weniger, aber mind. 1 pro Art ---
+    this.sharks = this.physics.add.group();
 
-// Anzahl: 1–2 pro Art (mindestens einer)
-for (const s of this.SPECIES){
-  const count = Phaser.Math.Between(1, 2); // min=1, max=2
-  for (let i = 0; i < count; i++) {
-    // Größere Suchfläche (keine 200px Ränder mehr, nur kleine Polster)
-    const x = 80 + Math.random()*(this.WORLD_W - 160);
-    const y = 80 + Math.random()*(this.WORLD_H - 160);
+    // Anzahl: 1–2 pro Art (mindestens einer)
+    for (const s of this.SPECIES){
+      const count = Phaser.Math.Between(1, 2); // min=1, max=2
+      for (let i = 0; i < count; i++) {
+        // Größere Suchfläche (keine 200px Ränder mehr, nur kleine Polster)
+        const x = 80 + Math.random()*(this.WORLD_W - 160);
+        const y = 80 + Math.random()*(this.WORLD_H - 160);
 
-    const texKey = this.textures.exists(s.tex) ? s.tex : ("dot_big_" + s.id);
-    const spr = this.createSharkSprite(x, y, texKey);
+        const texKey = this.textures.exists(s.tex) ? s.tex : ("dot_big_" + s.id);
+        const spr = this.createSharkSprite(x, y, texKey);
 
-    this.sharks.add(spr);
+        this.sharks.add(spr);
 
-    spr.setData("id", s.id);
-    spr.setData("name", s.name);
-    spr.setData("color", s.color);
+        spr.setData("id", s.id);
+        spr.setData("name", s.name);
+        spr.setData("color", s.color);
 
-    this.assignRandomVelocity(spr, Phaser.Math.Between(50, 100));
-    this.scheduleWander(spr, 1800, 3200); // größere Pausen, weniger wuselig
-  }
-}
+        this.assignRandomVelocity(spr, Phaser.Math.Between(50, 100));
+        this.scheduleWander(spr, 1800, 3200); // größere Pausen, weniger wuselig
+      }
+    }
 
-this.physics.add.collider(this.player, this.sharks);
-
-
+    this.physics.add.collider(this.player, this.sharks);
 
     // --- Foto-Frame an Spieler koppeln ---
     this.frameW = 320;
@@ -173,30 +175,35 @@ this.physics.add.collider(this.player, this.sharks);
 
     // --- Foto-Overlay (zentral, garantiert sichtbar) ---
     this.photoOverlay = this.makePhotoOverlay();
+
     const introAlreadySeen = localStorage.getItem(this.introKey) === "1";
-if (!introAlreadySeen) {
-  this.introOverlay = this.makeIntroOverlay();
-  this.introOverlay.setVisible(true).setAlpha(1);
+    if (!introAlreadySeen) {
+      this.introOverlay = this.makeIntroOverlay();
+      this.introOverlay.setVisible(true).setAlpha(1);
 
-  // Steuerung blockieren solange das Intro offen ist
-  this.bookOpen = true;
-  this.physics.world.pause();
-  this.player.setVelocity(0,0);
+      // Steuerung blockieren solange das Intro offen ist
+      this.bookOpen = true;
+      this.physics.world.pause();
+      this.player.setVelocity(0,0);
 
-  // Schließen mit [SPACE]
-  this.input.keyboard.once("keydown-SPACE", () => {
-    this.introOverlay.setVisible(false);
-    this.bookOpen = false;
-    this.physics.world.resume();
+      // Schließen mit [SPACE]
+      this.input.keyboard.once("keydown-SPACE", () => {
+        this.introOverlay.setVisible(false);
+        this.bookOpen = false;
+        this.physics.world.resume();
 
-    // >>> Flag dauerhaft setzen
-    try { localStorage.setItem(this.introKey, "1"); } catch(e) {}
-  });
-}
+        // >>> Flag dauerhaft setzen
+        try { localStorage.setItem(this.introKey, "1"); } catch(e) {}
+      });
+    }
 
+    // >>> NEU: Geschenk-Overlay vorbereiten
+    this.giftOverlay = this.makeGiftOverlay(); // unsichtbar init
+    this.rewardLayer = null; // wird beim ersten Öffnen gebaut
+
+    // Falls Save schon komplett ist und Geschenk noch nicht gezeigt wurde
+    this.checkCompletionOnce();
   }
-
-  
 
   // ================= Update =================
   update(){
@@ -265,81 +272,82 @@ if (!introAlreadySeen) {
   }
 
   getPhotoRect(){
-  // Weltkoordinaten des Fotofensters
-  return new Phaser.Geom.Rectangle(
-    this.photoFrame.x - this.frameW/2,
-    this.photoFrame.y - this.frameH/2,
-    this.frameW,
-    this.frameH
-  );
-}
-
+    // Weltkoordinaten des Fotofensters
+    return new Phaser.Geom.Rectangle(
+      this.photoFrame.x - this.frameW/2,
+      this.photoFrame.y - this.frameH/2,
+      this.frameW,
+      this.frameH
+    );
+  }
 
   // ================= Foto-Logik =================
- takePhoto(){
-  const now = this.time.now || performance.now();
-  if (now - this.lastShotAt < 500) return; // kurzer Cooldown
-  this.lastShotAt = now;
+  takePhoto(){
+    const now = this.time.now || performance.now();
+    if (now - this.lastShotAt < 500) return; // kurzer Cooldown
+    this.lastShotAt = now;
 
-  // Blitz (HUD)
-  this.flash.setAlpha(0.8);
-  this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
+    // Blitz (HUD)
+    this.flash.setAlpha(0.8);
+    this.tweens.add({ targets:this.flash, alpha:0, duration:160, ease:"Quad.easeOut" });
 
-  // Rechteck des Foto-Frames
-  const photoRect = this.getPhotoRect();
+    // Rechteck des Foto-Frames
+    const photoRect = this.getPhotoRect();
 
-  // Alle Haie, deren sichtbare Bounds das Foto-Rechteck schneiden
-  const inFrame = [];
-  const sharks = this.sharks.getChildren(); // zuverlässiger als children.iterate
-  for (let i=0;i<sharks.length;i++){
-    const s = sharks[i];
-    if (!s || !s.active || !s.visible) continue;
-    // getBounds berücksichtigt Scale/Flip und benutzt Weltkoordinaten
-    const sb = s.getBounds();
-    if (Phaser.Geom.Rectangle.Overlaps(photoRect, sb)) {
-      inFrame.push(s);
+    // Alle Haie, deren sichtbare Bounds das Foto-Rechteck schneiden
+    const inFrame = [];
+    const sharks = this.sharks.getChildren(); // zuverlässiger als children.iterate
+    for (let i=0;i<sharks.length;i++){
+      const s = sharks[i];
+      if (!s || !s.active || !s.visible) continue;
+      // getBounds berücksichtigt Scale/Flip und benutzt Weltkoordinaten
+      const sb = s.getBounds();
+      if (Phaser.Geom.Rectangle.Overlaps(photoRect, sb)) {
+        inFrame.push(s);
+      }
     }
-  }
 
-  if (inFrame.length === 0){
-    this.showPhotoOverlay(["Kein Hai im Bild"]);
-    return;
-  }
-
-  // Pro Art nur einmal zählen (falls mehrere gleiche im Frame sind)
-  const seen = new Set();
-  const newCaught = [];
-  const already   = [];
-  for (const s of inFrame){
-    const id = s.getData("id");
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const name = s.getData("name");
-    if (!this.dex.caught[id]) {
-      this.dex.caught[id] = true;
-      newCaught.push(name);
-    } else {
-      already.push(name);
+    if (inFrame.length === 0){
+      this.showPhotoOverlay(["Kein Hai im Bild"]);
+      return;
     }
-  }
 
-  // Fortschritt speichern/anzeigen
-  if (newCaught.length > 0){
-    this.saveDex();
-    this.updateHud();
-    if (this.bookOpen) this.refreshBook();
-  }
+    // Pro Art nur einmal zählen (falls mehrere gleiche im Frame sind)
+    const seen = new Set();
+    const newCaught = [];
+    const already   = [];
+    for (const s of inFrame){
+      const id = s.getData("id");
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const name = s.getData("name");
+      if (!this.dex.caught[id]) {
+        this.dex.caught[id] = true;
+        newCaught.push(name);
+      } else {
+        already.push(name);
+      }
+    }
 
-  // Meldungen im Overlay
-  const msgs = [];
-  for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
-  if (newCaught.length === 0){
-    for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
-    if (already.length === 0) msgs.push("Kein Hai im Bild");
-  }
-  this.showPhotoOverlay(msgs);
-}
+    // Fortschritt speichern/anzeigen
+    if (newCaught.length > 0){
+      this.saveDex();
+      this.updateHud();
+      if (this.bookOpen) this.refreshBook();
+    }
 
+    // Meldungen im Overlay
+    const msgs = [];
+    for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
+    if (newCaught.length === 0){
+      for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
+      if (already.length === 0) msgs.push("Kein Hai im Bild");
+    }
+    this.showPhotoOverlay(msgs);
+
+    // >>> NEU: prüfen, ob jetzt alles komplett ist
+    this.checkCompletionOnce();
+  }
 
   // ================= UI / HUD =================
   updateHud(){
@@ -492,54 +500,70 @@ if (!introAlreadySeen) {
   }
 
   toggleBook(){
-  const willOpen = !this.bookOpen;
-  this.bookOpen = willOpen;
+    const willOpen = !this.bookOpen;
+    this.bookOpen = willOpen;
 
-  // Sichtbarkeit umschalten
-  this.bookLayer.setVisible(willOpen);
+    // Sichtbarkeit umschalten
+    this.bookLayer.setVisible(willOpen);
 
-  // >>> NEU: Beim Öffnen Liste neu aufbauen
-  if (willOpen) this.refreshBook();
+    // >>> NEU: Beim Öffnen Liste neu aufbauen
+    if (willOpen) this.refreshBook();
 
-  // Physik pausieren/fortsetzen & Spieler stoppen
-  this.physics.world[willOpen ? "pause" : "resume"]();
-  this.player.setVelocity(0,0);
-}
-
+    // Physik pausieren/fortsetzen & Spieler stoppen
+    this.physics.world[willOpen ? "pause" : "resume"]();
+    this.player.setVelocity(0,0);
+  }
 
   refreshBook(){
     if (this.bookLayer) this.buildBookList(this.bookLayer);
   }
 
-repositionUI(){
-  const pad = 16;
-  this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
-  if (this.bookBtn && this.bookBtn._label){
-    const x = this.scale.width - (110 + pad);
-    const y = this.scale.height - (40 + pad);
-    this.bookBtn.setPosition(x, y);
-    this.bookBtn._label.setPosition(x, y);
-  }
+  repositionUI(){
+    const pad = 16;
+    this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
+    if (this.bookBtn && this.bookBtn._label){
+      const x = this.scale.width - (110 + pad);
+      const y = this.scale.height - (40 + pad);
+      this.bookBtn.setPosition(x, y);
+      this.bookBtn._label.setPosition(x, y);
+    }
 
-  // Foto-Overlay
-  if (this.photoOverlay){
-    this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
-    if (this.photoOverlay._dim){
-      this.photoOverlay._dim.width  = this.scale.width;
-      this.photoOverlay._dim.height = this.scale.height;
+    // Foto-Overlay
+    if (this.photoOverlay){
+      this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+      if (this.photoOverlay._dim){
+        this.photoOverlay._dim.width  = this.scale.width;
+        this.photoOverlay._dim.height = this.scale.height;
+      }
+    }
+
+    // Intro-Overlay (falls offen)
+    if (this.introOverlay){
+      this.introOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+      if (this.introOverlay._dim){
+        this.introOverlay._dim.width  = this.scale.width;
+        this.introOverlay._dim.height = this.scale.height;
+      }
+    }
+
+    // >>> NEU: Geschenk-Overlay
+    if (this.giftOverlay){
+      this.giftOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+      if (this.giftOverlay._dim){
+        this.giftOverlay._dim.width  = this.scale.width;
+        this.giftOverlay._dim.height = this.scale.height;
+      }
+    }
+
+    // >>> NEU: Reward-Layer (Vollbild)
+    if (this.rewardLayer){
+      this.rewardLayer.setPosition(this.scale.width/2, this.scale.height/2);
+      if (this.rewardLayer._dim){
+        this.rewardLayer._dim.width  = this.scale.width;
+        this.rewardLayer._dim.height = this.scale.height;
+      }
     }
   }
-
-  // Intro-Overlay (falls offen)
-  if (this.introOverlay){
-    this.introOverlay.setPosition(this.scale.width/2, this.scale.height/2);
-    if (this.introOverlay._dim){
-      this.introOverlay._dim.width  = this.scale.width;
-      this.introOverlay._dim.height = this.scale.height;
-    }
-  }
-}
-
 
   // ================= Utils =================
   makeDiverAnimations(){
@@ -564,7 +588,7 @@ repositionUI(){
   createSharkSprite(x, y, key){
     const spr = this.physics.add.sprite(x, y, key);
     const tex = this.textures.get(key);
-    const img = tex && tex.getSourceImage ? tex.getSourceImage() : null;
+    const img = tex && tex.getSourceImage ? tex.getSourceImage() : null; // <-- typo? keep user's pattern
     const targetH = 115;
     const scale = (img && img.height) ? (targetH / img.height) : 1;
     spr.setScale(scale);
@@ -577,8 +601,6 @@ repositionUI(){
     return spr;
   }
 
-
-  
   assignRandomVelocity(spr, speed){
     const ang = Math.random()*Math.PI*2;
     spr.setVelocity(Math.cos(ang)*speed, Math.sin(ang)*speed);
@@ -722,22 +744,22 @@ repositionUI(){
   }
 
   makeIntroOverlay(){
-  const W = this.scale.width, H = this.scale.height;
+    const W = this.scale.width, H = this.scale.height;
 
-  const cont = this.add.container(W/2, H/2)
-    .setScrollFactor(0)
-    .setDepth(25000)
-    .setVisible(false)
-    .setAlpha(0);
+    const cont = this.add.container(W/2, H/2)
+      .setScrollFactor(0)
+      .setDepth(25000)
+      .setVisible(false)
+      .setAlpha(0);
 
-  const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0.5);
+    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0.5);
 
-  const panelW = Math.min(720, W*0.9);
-  const panelH = Math.min(460, H*0.85);
-  const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
-  panel.setStrokeStyle(4, 0xaad4ff, 1);
+    const panelW = Math.min(720, W*0.9);
+    const panelH = Math.min(460, H*0.85);
+    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
+    panel.setStrokeStyle(4, 0xaad4ff, 1);
 
-  const story =
+    const story =
 `Willkommen im offenen Meer!
 Du bist eine Forscherin auf einer besonderen Mission:
 **Alle Haie der Region zu entdecken und zu fotografieren.**
@@ -754,21 +776,20 @@ Finde alle Arten von Haien, fotografiere sie und hake deine Liste ab.
 
 Drücke [SPACE], um deine Reise zu beginnen!`;
 
-  const txt = this.add.text(0, 0, story, {
-    fontFamily:"system-ui, sans-serif",
-    fontSize:"20px",
-    color:"#103a5c",
-    align:"left",
-    wordWrap: { width: panelW - 60 }
-  }).setOrigin(0.5);
+    const txt = this.add.text(0, 0, story, {
+      fontFamily:"system-ui, sans-serif",
+      fontSize:"20px",
+      color:"#103a5c",
+      align:"left",
+      wordWrap: { width: panelW - 60 }
+    }).setOrigin(0.5);
 
-  cont.add([dim, panel, txt]);
-  cont.setAlpha(1);
-  cont._dim = dim; // für Resize
-  cont._panel = panel;
-  return cont;
-}
-
+    cont.add([dim, panel, txt]);
+    cont.setAlpha(1);
+    cont._dim = dim; // für Resize
+    cont._panel = panel;
+    return cont;
+  }
 
   showPhotoOverlay(lines){
     const cont = this.photoOverlay;
@@ -804,5 +825,140 @@ Drücke [SPACE], um deine Reise zu beginnen!`;
       }
     });
   }
-}
 
+  // ======= NEU: Spielabschluss + Geschenk =======
+  checkCompletionOnce(){
+    // Schon gezeigt?
+    if (localStorage.getItem(this.giftKey) === "1") return;
+
+    const total = this.SPECIES.length;
+    let have = 0;
+    for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
+
+    if (have >= total){
+      try { localStorage.setItem(this.giftKey, "1"); } catch(e){}
+      this.showGiftOverlay();
+    }
+  }
+
+  showGiftOverlay(){
+    if (!this.giftOverlay) this.giftOverlay = this.makeGiftOverlay();
+    this.giftOverlay.setVisible(true).setAlpha(0);
+    this.tweens.add({ targets:this.giftOverlay, alpha:1, duration:180, ease:"Quad.easeOut" });
+
+    // Steuerung blockieren
+    this.bookOpen = true;
+    this.physics.world.pause();
+    this.player.setVelocity(0,0);
+  }
+
+  makeGiftOverlay(){
+    const W = this.scale.width, H = this.scale.height;
+    const cont = this.add.container(W/2, H/2)
+      .setScrollFactor(0)
+      .setDepth(26000)
+      .setVisible(false)
+      .setAlpha(0);
+
+    const dim = this.add.rectangle(0,0, W,H, 0x000000, 0.6).setOrigin(0.5);
+
+    const panelW = Math.min(620, W*0.9);
+    const panelH = Math.min(360, H*0.85);
+    const panel  = this.add.rectangle(0,0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
+    panel.setStrokeStyle(4, 0xaad4ff, 1);
+
+    const msg =
+`Du hast das Spiel durchgespielt!
+Öffne jetzt dein Geschenk.`;
+
+    const txt = this.add.text(0, -panelH*0.25, msg, {
+      fontFamily:"system-ui, sans-serif",
+      fontSize:"24px",
+      color:"#103a5c",
+      align:"center",
+      wordWrap:{ width: panelW - 60 }
+    }).setOrigin(0.5);
+
+    let icon;
+    if (this.textures.exists("gift_icon")){
+      icon = this.add.image(0, 28, "gift_icon").setOrigin(0.5).setInteractive({useHandCursor:true});
+      const tex = this.textures.get("gift_icon").getSourceImage();
+      const scale = tex ? Math.min(1.0, (panelW*0.35)/tex.width) : 1;
+      icon.setScale(scale);
+    } else {
+      icon = this.add.rectangle(0, 28, 140, 140, 0xff2d55, 1)
+        .setStrokeStyle(6, 0xffffff, 1)
+        .setInteractive({useHandCursor:true});
+      this.add.text(0, 28, "GESCHENK", {
+        fontFamily:"system-ui", fontSize:"18px", color:"#ffffff"
+      }).setOrigin(0.5);
+    }
+    icon.on("pointerup", ()=> this.openRewardImage());
+
+    const hint = this.add.text(0, panelH*0.30 - 16, "Tippe/klicke auf das Geschenk", {
+      fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#355e7a"
+    }).setOrigin(0.5);
+
+    cont.add([dim, panel, txt, icon, hint]);
+    cont._dim = dim; cont._panel = panel;
+    return cont;
+  }
+
+  openRewardImage(){
+    if (!this.rewardLayer){
+      const W = this.scale.width, H = this.scale.height;
+      const lay = this.add.container(W/2, H/2)
+        .setScrollFactor(0)
+        .setDepth(27000)
+        .setVisible(false)
+        .setAlpha(0);
+
+      const dim = this.add.rectangle(0,0, W,H, 0x000000, 0.85).setOrigin(0.5).setInteractive();
+
+      let img;
+      if (this.textures.exists("gift_reward")){
+        img = this.add.image(0,0,"gift_reward").setOrigin(0.5);
+        const tex = this.textures.get("gift_reward").getSourceImage();
+        const maxW = W * 0.9, maxH = H * 0.9;
+        const sw = tex ? maxW / tex.width : 1;
+        const sh = tex ? maxH / tex.height: 1;
+        img.setScale(Math.min(sw, sh, 1));
+      } else {
+        img = this.add.text(0,0,"[Geschenkbild fehlt]", {
+          fontFamily:"system-ui", fontSize:"28px", color:"#ffffff"
+        }).setOrigin(0.5);
+      }
+
+      const close = ()=>{
+        this.tweens.add({
+          targets: lay, alpha:0, duration:180, ease:"Quad.easeIn",
+          onComplete: ()=>{
+            lay.setVisible(false);
+            this.bookOpen = false;
+            this.physics.world.resume();
+          }
+        });
+      };
+      // Schließen per Klick/Touch
+      dim.on("pointerup", close);
+      img.setInteractive({ useHandCursor:true });
+      img.on("pointerup", close);
+
+      lay.add([dim, img]);
+      lay._dim = dim; lay._img = img;
+      this.rewardLayer = lay;
+    }
+
+    // Geschenk-Overlay ausblenden
+    if (this.giftOverlay){
+      this.tweens.add({
+        targets: this.giftOverlay, alpha:0, duration:140, ease:"Quad.easeIn",
+        onComplete: ()=> this.giftOverlay.setVisible(false)
+      });
+    }
+
+    // Reward zeigen
+    this.rewardLayer.setVisible(true).setAlpha(0);
+    this.tweens.add({ targets:this.rewardLayer, alpha:1, duration:180, ease:"Quad.easeOut" });
+  }
+}
