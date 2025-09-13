@@ -416,17 +416,17 @@ if (!introAlreadySeen) {
     // Fortschritt (wie bisher)
     const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 52,
       `Fortschritt: ${have} / ${total}`, {
-        fontFamily:"system-ui", fontSize:"18px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
+        fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
       }).setOrigin(0.5,0);
     list.add(prog);
 
     // Einträge (2 Spalten) – mit Thumbnails
     const colW  = (layer._panel.width - 56) / 2;
-    const rowH  = 58;   // höher wegen Bildchen
+    const rowH  = 72;   // höher wegen Bildchen
     const padL  = 10;   // linker Innenabstand je Zelle
-    const thumbH = 36;  // Zielhöhe der Thumbnails
-    const gap   = 10;   // Abstand Bild -> Name
-    const nameW = 220;  // Breite bis zum Status
+    const thumbH = 56;  // Zielhöhe der Thumbnails
+    const gap   = 14;   // Abstand Bild -> Name
+    const nameW = 280;  // Breite bis zum Status
 
     let idx = 0;
     for (const s of this.SPECIES){
@@ -456,13 +456,13 @@ if (!introAlreadySeen) {
 
       // Name
       const name = this.add.text(nameX, baseY, s.name, {
-        fontFamily:"system-ui", fontSize:"18px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
+        fontFamily:"system-ui", fontSize:"22px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
       });
       list.add(name);
 
       // Status (✓ / –)
       const status = this.add.text(nameX + nameW, baseY, caught ? "✓" : "–", {
-        fontFamily:"system-ui", fontSize:"18px",
+        fontFamily:"system-ui", fontSize:"22px",
         color: caught ? "#a7f5a1" : "#ffc0c0", stroke:"#000", strokeThickness:3
       });
       list.add(status);
@@ -474,7 +474,7 @@ if (!introAlreadySeen) {
     const btn = this.add.rectangle(layer._panel.getBottomCenter().x, layer._panel.getBottomCenter().y - 28, 200, 40, 0x0d2e46, 1)
       .setInteractive({useHandCursor:true});
     const btnt = this.add.text(btn.x, btn.y, "Fortschritt zurücksetzen", {
-      fontFamily:"system-ui", fontSize:"16px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
+      fontFamily:"system-ui", fontSize:"18px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
     }).setOrigin(0.5);
     btn.on("pointerover", ()=> btn.setFillStyle(0x134062,1));
     btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));

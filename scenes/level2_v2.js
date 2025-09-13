@@ -4,7 +4,7 @@ const DEBUG = false;
 
 /* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
 (function () {
-  var VERSION = "L2-2025-09-12-topcenter-hud-solid-npcs-no-extra-cams+floatO2+keyOverlay";
+  var VERSION = "L2-2025-09-12-topcenter-hud-solid-npcs-no-extra-cams+floatO2+keyOverlay+introOnce";
   var now = new Date().toISOString();
   var url = "(unknown)";
   try {
@@ -68,8 +68,8 @@ export default class Level2 extends Phaser.Scene {
       "#.....#..#.#.#....#D###...##",
       "#####.######.######.....#..#",
       "#M....#....###.##...###.####",
-      "#####..##........#...#....#",
-      "#..F######.######.#.#.######",
+      "#####..##.........#...#....#",
+      "#..f######.######.#.#.######",
       "#.##............#.#.#......#",
       "#......#.#.##.#.#.#...##.#E#",
       "######.#...##.#.#.####.#.#.#",
@@ -197,7 +197,7 @@ export default class Level2 extends Phaser.Scene {
     this.haveDadKey = false; // Tür E
     this.gameOver   = false;
 
-    this.oxygenMax  = 52;
+    this.oxygenMax  = 40;
     this.oxygen     = this.oxygenMax;
 
     // --- NEU: schwebende O2-Leiste über dem Spieler ---
@@ -219,12 +219,16 @@ export default class Level2 extends Phaser.Scene {
     // === NEU: Key-Overlay (Foto-Overlay-Stil aus L3) ===
     this.keyOverlay = this.makeKeyOverlay();
 
+    // === NEU: Intro-Overlay (einmalig) ===
+    this.introOverlay = this.makeIntroOverlay();
+    this.showIntroIfFirstTime(); // zeigt & pausiert ggf.
+
     // Auf Resize HUD korrekt neu positionieren
     this.scale.on("resize", ()=>{
       this.repositionUIFrame();
       escTxt.setPosition(16, this.scale.height-10);
 
-      // Overlay anpassen
+      // Key-Overlay anpassen
       if (this.keyOverlay){
         this.keyOverlay.setPosition(this.scale.width/2, this.scale.height/2);
         if (this.keyOverlay._dim){
@@ -234,10 +238,23 @@ export default class Level2 extends Phaser.Scene {
         if (this.keyOverlay._panel){
           const panelW = Math.min(560, this.scale.width*0.9);
           this.keyOverlay._panel.width = panelW;
-          // Höhe passt sich dynamisch beim Setzen des Textes an
           if (this.keyOverlay._text){
             this.keyOverlay._text.setWordWrapWidth(panelW - 48, true);
           }
+        }
+      }
+
+      // Intro-Overlay anpassen
+      if (this.introOverlay){
+        this.introOverlay.setPosition(this.scale.width/2, this.scale.height/2);
+        if (this.introOverlay._dim){
+          this.introOverlay._dim.width  = this.scale.width;
+          this.introOverlay._dim.height = this.scale.height;
+        }
+        if (this.introOverlay._panel && this.introOverlay._text){
+          const panelW = Math.min(720, this.scale.width*0.9);
+          this.introOverlay._panel.width = panelW;
+          this.introOverlay._text.setWordWrapWidth(panelW - 60, true);
         }
       }
     });
@@ -245,10 +262,10 @@ export default class Level2 extends Phaser.Scene {
     // ------- O₂-Timer -------
     this.time.addEvent({
       delay:1000, loop:true, callback: ()=>{
-        if (this.gameOver) return;
+        if (this.gameOver || this.introOpen) return; // Intro pausiert O2-Verbrauch
         this.oxygen = Math.max(0, this.oxygen-1);
         this.updateUI();
-        this.updateO2Visual(); // NEU: schwebende Leiste sofort mitziehen
+        this.updateO2Visual(); // schwebende Leiste sofort mitziehen
         if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
       }
     });
@@ -272,7 +289,7 @@ export default class Level2 extends Phaser.Scene {
     // ------- Steuerung -------
     this.keys = this.input.keyboard.addKeys({
       left:"LEFT", right:"RIGHT", up:"UP", down:"DOWN",
-      a:"A", d:"D", w:"W", s:"S", e:"E", esc:"ESC"
+      a:"A", d:"D", w:"W", s:"S", e:"E", esc:"ESC", space:"SPACE"
     });
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
 
@@ -293,7 +310,7 @@ export default class Level2 extends Phaser.Scene {
       npc.setData("gaveKey", true);
       this.openDoor("door1"); // Tür D
 
-      // Bestehende kleine Info + NEU: Overlay im L3-Stil
+      // kleine HUD-Info + Overlay im L3-Stil
       this.showInfo("Mama: Schlüssel erhalten → Tür D öffnet sich!");
       this.showKeyOverlay(["Schlüssel erhalten: Tür D öffnet sich!"]);
 
@@ -337,6 +354,13 @@ export default class Level2 extends Phaser.Scene {
   update(){
     if (!this.player) return;
 
+    // Intro offen? -> komplett pausieren (außer Animation Idle)
+    if (this.introOpen){
+      this.player.setAcceleration(0,0);
+      if (this.textures.exists("diver")) this.player.play("diver_idle", true);
+      return;
+    }
+
     const speed = 300;
     const ix = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
                (this.keys.right.isDown|| this.keys.d.isDown ?  1 : 0);
@@ -360,7 +384,7 @@ export default class Level2 extends Phaser.Scene {
       if (this.textures.exists("diver")) this.player.play("diver_idle", true);
     }
 
-    // --- NEU: O2-Leiste an Spielerposition binden ---
+    // O2-Leiste an Spielerposition binden
     this.updateFloatingO2Bar();
   }
 
@@ -578,10 +602,6 @@ export default class Level2 extends Phaser.Scene {
     const { container, offY } = this._o2Float;
     container.x = this.player.x;
     container.y = this.player.y + offY;
-
-    // optional "einrasten":
-    // container.x = Math.round(container.x);
-    // container.y = Math.round(container.y);
   }
 
   updateO2Visual(){
@@ -665,6 +685,95 @@ export default class Level2 extends Phaser.Scene {
       }
     });
   }
+
+  // ====== Intro-Overlay (einmalig beim 1. Start) ======
+  makeIntroOverlay(){
+    const W = this.scale.width, H = this.scale.height;
+
+    const cont = this.add.container(W/2, H/2)
+      .setScrollFactor(0)
+      .setDepth(25000)
+      .setVisible(false)
+      .setAlpha(0);
+
+    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0.5);
+
+    const panelW = Math.min(720, W*0.9);
+    const panelH = Math.min(460, H*0.85);
+    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
+    panel.setStrokeStyle(4, 0xaad4ff, 1);
+
+    const story =
+`Willkommen in den **Limes-Thermen**!
+
+Unter dir liegt ein altes Unterwasser-Labyrinth. Deine Mission:
+- **Finde Mama an der Kasse.** Sie gibt dir den ersten Schlüssel (**Tür D**).
+- Geh durch die geöffnete Tür und **suche Papa in der Sauna** – er hat den Schlüssel für den Ausgang (**Tür E**).
+
+**Wichtig:**
+- Das Labyrinth ändert sich **nie** – der Aufbau ist immer gleich.
+- Dein **Sauerstoff ist knapp**. Beim ersten Mal reicht er oft nicht.
+  Mach das Labyrinth ein paarmal, **präge dir den richtigen Weg** – dann schaffst du es rechtzeitig.
+
+**Steuerung:** Pfeiltasten oder [WASD] bewegen · [ESC] Menü
+
+Drücke **[LEERTASTE]**, um zu starten!`;
+
+    const txt = this.add.text(0, 0, story, {
+      fontFamily:"system-ui, sans-serif",
+      fontSize:"20px",
+      color:"#103a5c",
+      align:"left",
+      wordWrap: { width: panelW - 60 }
+    }).setOrigin(0.5);
+
+    cont.add([dim, panel, txt]);
+    cont._dim = dim;
+    cont._panel = panel;
+    cont._text = txt;
+
+    return cont;
+  }
+
+  showIntroIfFirstTime(){
+    const KEY = "l2_intro_seen_v1";
+    let seen = false;
+    try { seen = localStorage.getItem(KEY) === "1"; } catch(e){}
+
+    if (seen) { this.introOpen = false; return; }
+
+    // anzeigen + pausieren
+    this.introOpen = true;
+    this.physics.world.pause();
+    if (this.textures.exists("diver")) this.player.play("diver_idle", true);
+
+    const cont = this.introOverlay;
+    cont.setVisible(true);
+    cont.setAlpha(0);
+    cont.setPosition(this.scale.width/2, this.scale.height/2);
+    if (cont._dim){ cont._dim.width = this.scale.width; cont._dim.height = this.scale.height; }
+
+    // Fade in
+    this.tweens.add({ targets: cont, alpha: 1, duration: 160, ease: "Quad.easeOut" });
+
+    // Listener: Space schließt
+    const close = ()=> this.closeIntro(KEY);
+    this.input.keyboard.once("keydown-SPACE", close);
+    // Optional: Klick schließt ebenfalls
+    cont.setInteractive(new Phaser.Geom.Rectangle(-9999,-9999,19999,19999), Phaser.Geom.Rectangle.Contains);
+    cont.once("pointerup", close);
+  }
+
+  closeIntro(KEY){
+    const cont = this.introOverlay;
+    this.tweens.add({
+      targets: cont, alpha: 0, duration: 180, ease: "Quad.easeIn",
+      onComplete: ()=>{
+        cont.setVisible(false);
+        try { localStorage.setItem(KEY, "1"); } catch(e){}
+        this.introOpen = false;
+        this.physics.world.resume();
+      }
+    });
+  }
 }
-
-
