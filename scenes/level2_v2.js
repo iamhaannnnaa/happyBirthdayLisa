@@ -197,7 +197,7 @@ export default class Level2 extends Phaser.Scene {
     this.haveDadKey = false; // Tür E
     this.gameOver   = false;
 
-    this.oxygenMax  = 40;
+    this.oxygenMax  = 55;
     this.oxygen     = this.oxygenMax;
 
     // --- NEU: schwebende O2-Leiste über dem Spieler ---
