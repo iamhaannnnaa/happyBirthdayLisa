@@ -2,7 +2,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
-import { makeLetter } from "./ui.js";
+import { makeLetter, makeNote, showNote, zeigeVideo as spieleVideo } from "./ui.js";
 
 const DEBUG = false;
 
@@ -106,6 +106,10 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
       fontFamily:"system-ui, sans-serif", fontSize:"32px", color:"#e6f0ff"
     }).setScrollFactor(0).setDepth(20);
 
+    // Pergament-Notiz für die Sprüche beim Drückerfisch
+    this.note = makeNote(this, { width: 760, y: 0.22 });
+    this.fischTreffer = 0;
+
     this.oxyBar = this.makeOxygenBar();
     this.time.addEvent({ delay: 1000, loop: true, callback: ()=> {
       if (this.gameOver || this.introOpen) return;   // Brief pausiert die Uhr
@@ -151,8 +155,8 @@ und zwischen den Säulen glitzern acht Goldmünzen.
 Sammle alle acht ein, bevor Dir die Luft ausgeht. Oben rechts
 siehst Du, wie viel Sauerstoff Du noch hast.
 
-Und pass auf die Drückerfische auf – sie sind klein, aber wer
-einen rammt, verliert Luft.`;
+Und den Drückerfischen gehst Du besser aus dem Weg. Ich weiß,
+Du hörst da nicht drauf – aber wer einen rammt, verliert Luft.`;
 
     this.intro = makeLetter(this, {
       body: brief,
@@ -369,12 +373,25 @@ einen rammt, verliert Luft.`;
   }
 
   hitTriggerfish(){
-    if (this.gameOver) return;
+    if (this.gameOver || this.introOpen) return;
     this.oxygen = Math.max(0, this.oxygen-8);
     this.updateOxygenBar();
     const knock = new Phaser.Math.Vector2(this.player.body.velocity).normalize().scale(-260);
     this.player.body.velocity.add(knock);
     this.cameras.main.flash(120, 255, 120, 80, false);
+
+    // Kleiner Familienwitz: gesagt hatte ich es ja.
+    this.fischTreffer = (this.fischTreffer || 0) + 1;
+    const sprueche = [
+      "„Du sagst mir jetzt gar nichts mehr!“",
+      "Ich hatte gesagt: aus dem Weg.",
+      "Der Fisch hatte Vorfahrt.",
+      "Immer noch: aus dem Weg gehen.",
+      "Drückerfisch 1 : 0 Lisa."
+    ];
+    const i = Math.min(this.fischTreffer - 1, sprueche.length - 1);
+    if (this.note) showNote(this, this.note, sprueche[i], { ms: 1500 });
+
     if (this.oxygen<=0) this.fail("Gefährliche Begegnung…");
   }
 
@@ -425,7 +442,7 @@ makeOxygenBar(){
     markLevelDone("Level1");                     // schaltet das nächste Level frei
     const nx = nextLevel("Level1");
     this.showEndPanel("Level geschafft! 🎉",
-      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "");
+      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "", true);
   }
   fail(msg){
     if (this.gameOver) return;
@@ -434,25 +451,51 @@ makeOxygenBar(){
     this.player.body.setVelocity(0,0);
     this.showEndPanel(msg || "Game Over");
   }
-  showEndPanel(title, subtitle){
+  showEndPanel(title, subtitle, mitErinnerung){
     const W=this.scale.width,H=this.scale.height;
-    const dim = this.add.rectangle(W/2,H/2,W, H, 0x000000, 0.55).setScrollFactor(0).setDepth(100);
-    const panel = this.add.rectangle(W/2,H/2, 680, 320, 0x071a2b, 0.95).setScrollFactor(0).setDepth(101);
-    this.add.text(W/2, H/2-100, title, { fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff"}).setOrigin(0.5).setScrollFactor(0).setDepth(102);
-    if (subtitle){
-      this.add.text(W/2, H/2-56, subtitle, { fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff"})
-        .setOrigin(0.5).setScrollFactor(0).setDepth(102);
+    // HUD aus dem Weg, damit Panel und Video frei stehen
+    if (this.uiCoins) this.uiCoins.setVisible(false);
+    if (this.oxyBar){
+      Object.values(this.oxyBar).forEach(o => o && o.setVisible && o.setVisible(false));
     }
-
-    const makeBtn = (txt, y, onClick)=>{
-      const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(102).setInteractive({ useHandCursor:true });
+    const hoch = mitErinnerung ? 400 : 320;
+    const dim = this.add.rectangle(W/2,H/2,W, H, 0x000000, 0.55).setScrollFactor(0).setDepth(100);
+    const panel = this.add.rectangle(W/2,H/2, 720, hoch, 0x071a2b, 0.95).setScrollFactor(0).setDepth(101);
+    const teile = [dim, panel];
+    const kopf = mitErinnerung ? -140 : -100;
+    teile.push(this.add.text(W/2, H/2+kopf, title, {
+      fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    if (subtitle){
+      teile.push(this.add.text(W/2, H/2+kopf+46, subtitle, {
+        fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff"
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    }
+    const makeBtn = (txt, y, onClick, bleibt)=>{
+      const r=this.add.rectangle(W/2, y, 460, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(102).setInteractive({ useHandCursor:true });
       const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff"}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
       r.on("pointerover", ()=>r.setFillStyle(0x134062,1));
       r.on("pointerout",  ()=>r.setFillStyle(0x0d2e46,1));
-      r.on("pointerdown", ()=>{ onClick(); dim.destroy(); panel.destroy(); r.destroy(); t.destroy(); });
+      teile.push(r, t);
+      r.on("pointerdown", ()=>{
+        if (bleibt){ onClick(); return; }              // Panel bleibt stehen
+        onClick();
+        teile.forEach(o => o.destroy());
+      });
+      return r;
     };
-    makeBtn("Nochmal", H/2+10, ()=> this.scene.restart());
-    makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
+
+    let y = H/2 + (mitErinnerung ? -30 : 10);
+    if (mitErinnerung){
+      makeBtn("▶  Erinnerung ansehen", y, ()=>{
+        teile.forEach(o => o.setVisible(false));
+        spieleVideo(this, ["assets/video/lisa_ruft.mp4", "assets/video/lisa_ruft.webm"],
+                    ()=> teile.forEach(o => o.setVisible(true)));
+      }, true);
+      y += 72;
+    }
+    makeBtn("Nochmal", y, ()=> this.scene.restart());
+    makeBtn("Zum Menü", y + 72, ()=> this.scene.start("MenuScene"));
   }
 
   // ---- Helpers ----

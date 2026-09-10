@@ -8,6 +8,62 @@ const Phaser = window.Phaser;
 export const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
 export const INK   = "#3f2d1c";
 
+// Spielt ein Video bildschirmfüllend ab – ohne Titel, ohne Beschriftung,
+// nur ein kleines ✕ oben links. urls: Liste von Dateien, der Browser nimmt
+// die erste, die er kann (mp4 fürs iPhone, webm als Rückfall).
+export function zeigeVideo(scene, urls, onClose){
+  const W = scene.scale.width, H = scene.scale.height;
+  const lay = scene.add.container(W/2, H/2).setScrollFactor(0).setDepth(21000);
+  lay.add(scene.add.rectangle(0, 0, W*2, H*2, 0x05080b, 0.96));
+
+  // Bedienknöpfe des Levels ausblenden, damit nur das Video zu sehen ist
+  const touchScene = scene.scene.get("TouchScene");
+  const touchWarSichtbar = !!(touchScene && touchScene.scene.isVisible());
+  if (touchWarSichtbar) touchScene.scene.setVisible(false);
+
+  let video = null;
+  const schliessen = ()=>{
+    if (!lay.active) return;
+    try { if (video) video.stop(); } catch(e){}
+    scene._laufendesVideo = null;
+    if (touchWarSichtbar && touchScene) touchScene.scene.setVisible(true);
+    lay.destroy();
+    if (onClose) onClose();
+  };
+
+  try {
+    video = scene.add.video(0, 0);
+    video.setDepth(1);
+    lay.add(video);
+    const anpassen = ()=>{
+      const vw = video.width || 640, vh = video.height || 360;
+      video.setScale(Math.min((W*0.94)/vw, (H*0.88)/vh));
+    };
+    video.on("created", ()=>{ anpassen(); try { video.play(false); } catch(e){} });
+    video.on("play", anpassen);
+    video.on("complete", schliessen);
+    video.loadURL(Array.isArray(urls) ? urls : [urls]);
+    try { video.play(false); } catch(e){}   // der Tipp auf den Knopf zählt als Geste
+    anpassen();
+  } catch(e){
+    lay.add(scene.add.text(0, 0, "Video lässt sich hier nicht abspielen.", {
+      fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6d8bd"
+    }).setOrigin(0.5));
+  }
+  scene._laufendesVideo = video;
+
+  // links oben – rechts oben sitzt schon der Vollbild-Knopf der Seite
+  const zu = scene.add.circle(-W*0.44, -H*0.41, 34, 0x1a1410, 0.85)
+    .setStrokeStyle(2, 0xd8c9a8, 0.6).setInteractive({ useHandCursor:true });
+  const zuT = scene.add.text(-W*0.44, -H*0.41, "✕", {
+    fontFamily:"system-ui, sans-serif", fontSize:"30px", color:"#f4e7cd"
+  }).setOrigin(0.5);
+  lay.add([zu, zuT]);
+  zu.on("pointerdown", schliessen);
+
+  return lay;
+}
+
 // Baut einen Brief auf Pergament (wie in Level 2 und 3).
 // opts: { title, body, footer, hint, width, height }
 export function makeLetter(scene, opts){

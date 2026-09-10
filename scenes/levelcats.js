@@ -7,7 +7,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
-import { makeLetter, makeNote, showNote, SERIF } from "./ui.js";
+import { makeLetter, makeNote, showNote, zeigeVideo as spieleVideo, SERIF } from "./ui.js";
 
 // Die Welt ist größer als der Bildschirm – die Kamera fährt mit.
 const WW = 3400, WH = 1900;
@@ -623,51 +623,7 @@ Dich davor und drück den Knopf, um nachzusehen.`;
 
   // ---------- Video ----------
   zeigeVideo(onClose){
-    const Wd = this.scale.width, Hd = this.scale.height;
-    const lay = this.add.container(Wd/2, Hd/2).setScrollFactor(0).setDepth(21000);
-    lay.add(this.add.rectangle(0,0,Wd*2,Hd*2,0x05080b,0.96));
-
-    // Bewusst ohne Titel und Beschriftung – es soll nur das Video wirken.
-    let video = null;
-    try {
-      video = this.add.video(0, 0);
-      video.setDepth(1);
-      lay.add(video);
-      // Erst wenn die Größe bekannt ist, kann sauber skaliert werden
-      const anpassen = ()=>{
-        const vw = video.width || 406, vh = video.height || 720;
-        const sc = Math.min((Wd*0.94)/vw, (Hd*0.88)/vh);
-        video.setScale(sc);
-      };
-      video.on("created", ()=>{ anpassen(); try { video.play(false); } catch(e){} });
-      video.on("play", anpassen);
-      video.on("complete", ()=> schliessen());
-      // mp4 zuerst (iPhone/Safari), webm als Rückfall für Browser ohne H.264
-      video.loadURL(["assets/video/erinnerung.mp4", "assets/video/erinnerung.webm"]);
-      try { video.play(false); } catch(e){}   // Tipp auf den Knopf zählt als Geste
-      anpassen();
-    } catch(e){
-      lay.add(this.add.text(0, 0, "Video lässt sich hier nicht abspielen.", {
-        fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#e6d8bd"
-      }).setOrigin(0.5));
-    }
-    this.video = video;
-
-    // Nur ein kleines Kreuz oben rechts zum Schließen
-    const zu = this.add.circle(Wd*0.44, -Hd*0.41, 34, 0x1a1410, 0.85)
-      .setStrokeStyle(2, 0xd8c9a8, 0.6).setInteractive({useHandCursor:true});
-    const zuT = this.add.text(Wd*0.44, -Hd*0.41, "✕", {
-      fontFamily:"system-ui, sans-serif", fontSize:"30px", color:"#f4e7cd"
-    }).setOrigin(0.5);
-    lay.add([zu, zuT]);
-
-    const schliessen = ()=>{
-      if (!lay.active) return;
-      try { if (video) video.stop(); } catch(e){}
-      this.video = null;
-      lay.destroy();
-      if (onClose) onClose();
-    };
-    zu.on("pointerdown", schliessen);
+    this.video = null;
+    spieleVideo(this, ["assets/video/erinnerung.mp4", "assets/video/erinnerung.webm"], onClose);
   }
 }
