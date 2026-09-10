@@ -45,12 +45,25 @@ export default class Level2 extends Phaser.Scene {
         frameWidth:480, frameHeight:480, endFrame:15
       });
     }
-    // Wände/Boden (optional). Falls fehlen, baut makeSimpleTextures Fallbacks.
-    if (!this.textures.exists("wall")){
-      this.load.image("wall", "assets/objects/mauer.png");
-    }
-    if (!this.textures.exists("floor")){
-      this.load.image("floor", "assets/floors/sand_88.png");
+    // Grafiken für die Thermen. Fehlt etwas, springt makeSimpleTextures ein.
+    const L2 = "assets/objects/level2/";
+    this.load.image("wall",       L2 + "wall_tile.png");
+    this.load.image("floor",      L2 + "floor_tile.png");
+    this.load.image("door1",      L2 + "door_gold.png");
+    this.load.image("door2",      L2 + "door_red.png");
+    this.load.image("door_open",  L2 + "door_open.png");
+    this.load.image("exit",       L2 + "exit_tile.png");
+    this.load.image("mom",        L2 + "npc_mom.png");
+    this.load.image("dad",        L2 + "npc_dad.png");
+    this.load.image("key_gold",   L2 + "key_gold.png");
+    this.load.image("key_silver", L2 + "key_silver.png");
+    this.load.image("parchment",  L2 + "parchment.png");
+    this.load.image("deco_mosaic", L2 + "deco_mosaic.png");
+    this.load.image("deco_crack",  L2 + "deco_crack.png");
+    this.load.image("deco_algae",  L2 + "deco_algae.png");
+    this.load.image("deco_shell",  L2 + "deco_shell.png");
+    if (!this.textures.exists("caustics")){
+      this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
     }
   }
 
@@ -72,8 +85,8 @@ export default class Level2 extends Phaser.Scene {
       "#####.######.######.....#..#",
       "#M....#....###.##...###.####",
       "#####..##.........#...#....#",
-      "#..f######.######.#.#.######",
-      "#.##............#.#.#......#",
+      "#...######.######.#.#.######",
+      "#.##......F.....#.#.#......#",   // Papa: naeher am Weg, damit der Sauerstoff reicht
       "#......#.#.##.#.#.#...##.#E#",
       "######.#...##.#.#.####.#.#.#",
       "#......#.#....#.#......###X#",
@@ -107,9 +120,29 @@ export default class Level2 extends Phaser.Scene {
         const px = x*TILE + TILE/2;
         const py = y*TILE + TILE/2;
 
-        // Boden (hinter alles)
+        // Boden (hinter alles) – zufällig gedreht, damit kein Kachelmuster entsteht
         const f = this.add.image(px, py, "floor").setDepth(-5);
         f.setDisplaySize(this.TILE, this.TILE);
+        f.setAngle(Phaser.Math.RND.pick([0, 90, 180, 270]));
+        if (Phaser.Math.RND.frac() < 0.5) f.setFlipX(true);
+
+        // Deko nur auf begehbaren Feldern, damit die Gänge lebendig wirken
+        if (ch !== "#" && Phaser.Math.RND.frac() < 0.3){
+          const key = Phaser.Math.RND.weightedPick([
+            "deco_crack", "deco_algae", "deco_crack", "deco_shell",
+            "deco_mosaic", "deco_algae", "deco_crack", "deco_algae"
+          ]);
+          const deco = this.add.image(
+            px + Phaser.Math.Between(-18, 18),
+            py + Phaser.Math.Between(-18, 18), key
+          ).setDepth(-4);
+          const size = (key === "deco_mosaic")
+            ? this.TILE * 0.9
+            : this.TILE * Phaser.Math.FloatBetween(0.6, 0.95);
+          deco.setDisplaySize(size, size);
+          deco.setAlpha(key === "deco_crack" ? 0.75 : 0.9);
+          deco.setAngle(Phaser.Math.Between(0, 359));
+        }
 
         if (ch === "#"){
           const w = this.walls.create(px, py, "wall");
@@ -140,15 +173,18 @@ export default class Level2 extends Phaser.Scene {
             n.body.setOffset(-this.TILE/2 + n.displayOriginX, -this.TILE/2 + n.displayOriginY);
           }
           n.refreshBody();
-        } else if (ch === "D"){
-          const d = this.doors.create(px, py, "door1").setData("id","door1").setData("locked", true);
-          d.refreshBody();
-        } else if (ch === "E"){
-          const d = this.doors.create(px, py, "door2").setData("id","door2").setData("locked", true);
-          d.refreshBody();
+        } else if (ch === "D" || ch === "E"){
+          const id  = (ch === "D") ? "door1" : "door2";
+          const dr = this.doors.create(px, py, id).setData("id", id).setData("locked", true);
+          dr.setDisplaySize(this.TILE, this.TILE);   // Textur ist größer als eine Kachel
+          dr.setDepth(1);
+          dr.refreshBody();
         } else if (ch === "X"){
           const ex = this.exit.create(px, py, "exit");
+          ex.setDisplaySize(this.TILE, this.TILE);
           ex.refreshBody();
+          // sanftes Pulsieren, damit der Ausgang auffällt
+          this.tweens.add({ targets: ex, alpha: 0.75, duration: 1400, yoyo: true, repeat: -1, ease: "sine.inOut" });
         }
       }
     }
@@ -200,17 +236,23 @@ export default class Level2 extends Phaser.Scene {
     this.haveDadKey = false; // Tür E
     this.gameOver   = false;
 
-    this.oxygenMax  = 55;
+    this.oxygenMax  = 75;   // Weg zu Mama, Papa und Ausgang dauert ~35 s
     this.oxygen     = this.oxygenMax;
 
-    // --- NEU: schwebende O2-Leiste über dem Spieler ---
+    // --- Stimmung: Lichtschleier + Schwebeteilchen ---
+    this.addAtmosphere();
+
+    // --- schwebende O2-Leiste + Schlüssel über dem Spieler ---
     this.createFloatingO2Bar();
 
-    // ------- HUD oben mittig (fix) -------
+    // ------- HUD oben mittig -------
+    // Die Kamera zoomt in diesem Level 2x; ein Element mit scrollFactor 0
+    // landet dadurch außerhalb des Bildes. Alles Wichtige (Sauerstoff,
+    // Schlüssel) schwebt deshalb direkt über der Taucherin.
     this.ui = this.makeUIFrameTopCenter()
-      .setDepth(10000)             // ganz nach oben
-      .setScrollFactor(0);         // Kamera-unabhängig
-    this.children.bringToTop(this.ui);
+      .setDepth(10000)
+      .setScrollFactor(0)
+      .setVisible(false);
     this.updateUI();
 
     // ESC-Label (auch fix)
@@ -247,17 +289,12 @@ export default class Level2 extends Phaser.Scene {
         }
       }
 
-      // Intro-Overlay anpassen
+      // Brief-Overlay anpassen (fester Aufbau, nur Position + Abdunklung)
       if (this.introOverlay){
         this.introOverlay.setPosition(this.scale.width/2, this.scale.height/2);
         if (this.introOverlay._dim){
-          this.introOverlay._dim.width  = this.scale.width;
-          this.introOverlay._dim.height = this.scale.height;
-        }
-        if (this.introOverlay._panel && this.introOverlay._text){
-          const panelW = Math.min(720, this.scale.width*0.9);
-          this.introOverlay._panel.width = panelW;
-          this.introOverlay._text.setWordWrapWidth(panelW - 60, true);
+          this.introOverlay._dim.width  = this.scale.width*2;
+          this.introOverlay._dim.height = this.scale.height*2;
         }
       }
     });
@@ -322,7 +359,8 @@ export default class Level2 extends Phaser.Scene {
 
       // kleine HUD-Info + Overlay im L3-Stil
       this.showInfo("Mama: Schlüssel erhalten → Tür D öffnet sich!");
-      this.showKeyOverlay(["Schlüssel erhalten: Tür D öffnet sich!"]);
+      this.showKeyOverlay(["Schlüssel erhalten: die goldene Tür öffnet sich!"]);
+      this.lightUpKey("keyMom");
 
       this.updateUI();
       return;
@@ -334,7 +372,8 @@ export default class Level2 extends Phaser.Scene {
       this.openDoor("door2"); // Tür E
 
       this.showInfo("Papa: Schlüssel erhalten → Tür E öffnet sich!");
-      this.showKeyOverlay(["Schlüssel erhalten: Tür E öffnet sich!"]);
+      this.showKeyOverlay(["Schlüssel erhalten: die rote Tür öffnet sich!"]);
+      this.lightUpKey("keyDad");
 
       this.updateUI();
       return;
@@ -343,11 +382,14 @@ export default class Level2 extends Phaser.Scene {
 
   openDoor(id){
     this.doors.children.iterate(d=>{
-      if (d.getData("id")===id && d.getData("locked")){
-        d.setTexture("door_open");
+      if (d && d.getData("id")===id && d.getData("locked")){
+        const x = d.x, y = d.y;
         d.setData("locked", false);
         d.disableBody(true, true);
-        this.add.image(d.x, d.y, "door_open").setDepth(-4);
+        const open = this.add.image(x, y, "door_open").setDepth(-4);
+        open.setDisplaySize(this.TILE, this.TILE);
+        open.setAlpha(0);
+        this.tweens.add({ targets: open, alpha: 1, duration: 320, ease: "Quad.easeOut" });
       }
     });
   }
@@ -361,8 +403,9 @@ export default class Level2 extends Phaser.Scene {
   }
 
   // ====== Update / Bewegung ======
-  update(){
+  update(time, delta){
     if (!this.player) return;
+    this.updateAtmosphere(delta || 16);
 
     // Intro offen? -> komplett pausieren (außer Animation Idle)
     if (this.introOpen){
@@ -559,16 +602,62 @@ export default class Level2 extends Phaser.Scene {
   }
 
   updateBodySize(){
-    const USE_CIRCLE_HITBOX = true;
-    const HITBOX_SCALE_X = 0.68;
-    const HITBOX_SCALE_Y = 0.72;
-    const bw=this.player.displayWidth*HITBOX_SCALE_X, bh=this.player.displayHeight*HITBOX_SCALE_Y;
-    if (USE_CIRCLE_HITBOX){
-      const r = Math.min(bw, bh) * 0.5;
-      this.player.body.setCircle(r);
-      this.player.body.setOffset((this.player.displayWidth*0.5)-r,(this.player.displayHeight*0.5)-r);
-    } else {
-      this.player.body.setSize(bw,bh,true);
+    // Arcade rechnet Radius und Offset in TEXTUR-Pixeln und multipliziert
+    // sie danach mit der Sprite-Skalierung. Vorher wurden Display-Pixel
+    // übergeben – dadurch war die Trefferfläche winzig und versetzt, und
+    // die Taucherin ist optisch in die Wände geschwommen.
+    const p = this.player;
+    if (!p.body) return;
+
+    const frameW = (p.frame && p.frame.width)  || p.width;   // 480
+    const frameH = (p.frame && p.frame.height) || p.height;
+    const scale  = Math.abs(p.scaleX) || 1;
+
+    const R_WORLD = 26;                    // Radius in Weltpixeln (Gang = 88 px)
+    const rTex = R_WORLD / scale;
+
+    p.body.setCircle(rTex, frameW/2 - rTex, frameH/2 - rTex);
+  }
+
+  // ====== Stimmung: Lichtschleier + Schwebeteilchen ======
+  addAtmosphere(){
+    // Lichtflimmern über dem Boden
+    if (this.textures.exists("caustics")){
+      this.caustics = this.add.tileSprite(0, 0, this.mapW, this.mapH, "caustics")
+        .setOrigin(0, 0)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setAlpha(0.10)
+        .setDepth(-3);
+      this.caustics.setTileScale(0.6, 0.6);
+    }
+
+    // langsam aufsteigende Partikel
+    this.motes = [];
+    for (let i = 0; i < 70; i++){
+      const m = this.add.circle(
+        Phaser.Math.Between(0, this.mapW),
+        Phaser.Math.Between(0, this.mapH),
+        Phaser.Math.FloatBetween(1.2, 3.2),
+        0xdff3ff,
+        Phaser.Math.FloatBetween(0.10, 0.30)
+      ).setDepth(2);
+      m.speed = Phaser.Math.FloatBetween(5, 16);
+      m.drift = Phaser.Math.FloatBetween(-4, 4);
+      this.motes.push(m);
+    }
+  }
+
+  updateAtmosphere(dt){
+    if (this.caustics){
+      this.caustics.tilePositionX += 0.010 * dt;
+      this.caustics.tilePositionY += 0.006 * dt;
+    }
+    if (!this.motes) return;
+    const s = dt / 1000;
+    for (const m of this.motes){
+      m.y -= m.speed * s;
+      m.x += m.drift * s;
+      if (m.y < -8){ m.y = this.mapH + 8; m.x = Phaser.Math.Between(0, this.mapW); }
     }
   }
 
@@ -597,12 +686,22 @@ export default class Level2 extends Phaser.Scene {
     // kleines O₂-"Icon" links
     const dot = this.add.rectangle(-barWidth/2 - 6, 0, 4, 4, 0xffffff, 0.9).setOrigin(0.5);
 
-    c.add([bg, border, fill, dot]);
+    // Schlüssel-Anzeige direkt daneben – unabhängig vom Kamera-Zoom
+    const keyMom = this.add.image(barWidth/2 - 12, -16, "key_gold").setOrigin(0.5);
+    const keyDad = this.add.image(barWidth/2 + 8,  -16, "key_silver").setOrigin(0.5);
+    for (const k of [keyMom, keyDad]){
+      k.setDisplaySize(20, 20);
+      k.setAlpha(0.22);          // blass, solange nicht eingesammelt
+    }
+
+    c.add([bg, border, fill, dot, keyMom, keyDad]);
 
     // Referenzen merken
     this._o2Float = {
       container: c,
       fill,
+      keyMom,
+      keyDad,
       barWidth,
       barHeight,
       pad,
@@ -611,6 +710,16 @@ export default class Level2 extends Phaser.Scene {
 
     // initiale Breite/Farbe
     this.updateO2Visual();
+  }
+
+  // Schlüssel-Symbol über der Taucherin aufleuchten lassen
+  lightUpKey(which){
+    const icon = this._o2Float && this._o2Float[which];
+    if (!icon) return;
+    icon.setAlpha(1);
+    this.tweens.add({
+      targets: icon, scale: icon.scale * 1.9, duration: 200, yoyo: true, ease: "Back.easeOut"
+    });
   }
 
   updateFloatingO2Bar(){
@@ -702,7 +811,7 @@ export default class Level2 extends Phaser.Scene {
     });
   }
 
-  // ====== Intro-Overlay (einmalig beim 1. Start) ======
+  // ====== Intro: ein alter Brief (einmalig beim 1. Start) ======
   makeIntroOverlay(){
     const W = this.scale.width, H = this.scale.height;
 
@@ -712,42 +821,65 @@ export default class Level2 extends Phaser.Scene {
       .setVisible(false)
       .setAlpha(0);
 
-    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0.5);
+    // Die Kamera zoomt 2x. Der Container rechnet das heraus, damit der
+    // Brief genauso groß erscheint wie in einem Level ohne Zoom.
+    cont.setScale(1 / (this.cameras.main.zoom || 1));
 
-    const panelW = Math.min(720, W*0.9);
-    const panelH = Math.min(460, H*0.85);
-    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
-    panel.setStrokeStyle(4, 0xaad4ff, 1);
+    const dim = this.add.rectangle(0, 0, W*2, H*2, 0x04141c, 0.72).setOrigin(0.5);
 
-    const story =
-`Willkommen in den Limes-Thermen!
+    const panelW = 760, panelH = 520;
+    const paper = this.textures.exists("parchment")
+      ? this.add.image(0, 0, "parchment").setOrigin(0.5).setDisplaySize(panelW, panelH)
+      : this.add.rectangle(0, 0, panelW, panelH, 0xe9dcbf, 1).setOrigin(0.5);
+    paper.setAngle(-1.1);                       // leicht schief = handgemacht
 
-Unter dir liegt ein altes Unterwasser-Labyrinth. Deine Mission:
-- Finde Mama an der Kasse. Sie gibt dir den ersten Schlüssel (Tür D).
-- Geh durch die geöffnete Tür und suche Papa in der Sauna – er hat den Schlüssel für den Ausgang (Tür E).
+    const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+    const INK   = "#3f2d1c";
 
-Wichtig:
-- Das Labyrinth ändert sich nie – der Aufbau ist immer gleich.
-- Dein Sauerstoff ist knapp. Beim ersten Mal reicht er oft nicht.
-  Mach das Labyrinth ein paarmal, präge dir den richtigen Weg – dann schaffst du es rechtzeitig.
+    const head = this.add.text(-panelW/2 + 64, -panelH/2 + 46, "Liebe Lisa,", {
+      fontFamily: SERIF, fontSize: "34px", color: INK, fontStyle: "italic"
+    }).setOrigin(0, 0).setAngle(-1.1);
 
-Steuerung: ${touchEnabled()
-  ? "Joystick unten links bewegt dich · „☰ Menü“ unten führt zurück"
-  : "Pfeiltasten oder [WASD] bewegen · [ESC] Menü"}
+    const brief =
+`wenn Du das hier liest, bist Du schon tief unten in den alten
+Limes-Thermen. Ich habe Dir aufgeschrieben, was Du wissen musst.
 
-${touchEnabled() ? "Tippe auf den Bildschirm, um zu starten!" : "Drücke [LEERTASTE], um zu starten!"}`;
+Mama wartet vorne an der Kasse – sie hat den goldenen Schlüssel.
+Papa sitzt weiter hinten in der Sauna, bei ihm liegt der rote.
+Der Ausgang öffnet sich erst, wenn Du beide hast.
 
-    const txt = this.add.text(0, 0, story, {
-      fontFamily:"system-ui, sans-serif",
-      fontSize:"20px",
-      color:"#103a5c",
-      align:"left",
-      wordWrap: { width: panelW - 60 }
+Das Labyrinth ändert sich nie. Und behalte Deine Luft im Auge:
+Sauerstoff und Schlüssel schweben über Deinem Kopf.`;
+
+    const txt = this.add.text(-panelW/2 + 64, -panelH/2 + 108, brief, {
+      fontFamily: SERIF, fontSize: "21px", color: INK, align: "left",
+      lineSpacing: 7, wordWrap: { width: panelW - 150 }
+    }).setOrigin(0, 0).setAngle(-1.1);
+
+    const steuerung = touchEnabled()
+      ? "Joystick rechts bewegt Dich · „☰ Menü“ unten führt zurück"
+      : "Pfeiltasten oder [WASD] bewegen · [ESC] Menü";
+    const foot = this.add.text(-panelW/2 + 64, panelH/2 - 96, steuerung, {
+      fontFamily: SERIF, fontSize: "17px", color: "#6b5334", fontStyle: "italic"
+    }).setOrigin(0, 0).setAngle(-1.1);
+
+    // Siegel unten rechts
+    const sealX = panelW/2 - 86, sealY = panelH/2 - 74;
+    const seal  = this.add.circle(sealX, sealY, 30, 0x8e2f2c, 1);
+    const sealR = this.add.circle(sealX, sealY, 24, 0x000000, 0).setStrokeStyle(2, 0xb75a52, 0.9);
+    const sealT = this.add.text(sealX, sealY, "H", {
+      fontFamily: SERIF, fontSize: "26px", color: "#f0cfc4"
     }).setOrigin(0.5);
 
-    cont.add([dim, panel, txt]);
+    const hint = this.add.text(0, panelH/2 + 44,
+      touchEnabled() ? "Tippe auf den Bildschirm, um zu starten" : "[Leertaste] zum Starten", {
+      fontFamily: "system-ui, sans-serif", fontSize: "20px", color: "#cfe9ff"
+    }).setOrigin(0.5).setAlpha(0.85);
+    this.tweens.add({ targets: hint, alpha: 0.35, duration: 900, yoyo: true, repeat: -1 });
+
+    cont.add([dim, paper, head, txt, foot, seal, sealR, sealT, hint]);
     cont._dim = dim;
-    cont._panel = panel;
+    cont._panel = paper;
     cont._text = txt;
 
     return cont;
@@ -769,28 +901,40 @@ ${touchEnabled() ? "Tippe auf den Bildschirm, um zu starten!" : "Drücke [LEERTA
     cont.setVisible(true);
     cont.setAlpha(0);
     cont.setPosition(this.scale.width/2, this.scale.height/2);
-    if (cont._dim){ cont._dim.width = this.scale.width; cont._dim.height = this.scale.height; }
+    if (cont._dim){ cont._dim.width = this.scale.width*2; cont._dim.height = this.scale.height*2; }
 
     // Fade in
     this.tweens.add({ targets: cont, alpha: 1, duration: 160, ease: "Quad.easeOut" });
 
-    // Listener: Space schließt
-    const close = ()=> this.closeIntro(KEY);
-    this.input.keyboard.once("keydown-SPACE", close);
-    // Optional: Klick schließt ebenfalls
+    // Schließen per Leertaste oder Tippen
+    this.input.keyboard.once("keydown-SPACE", ()=> this.closeIntro(KEY));
     cont.setInteractive(new Phaser.Geom.Rectangle(-9999,-9999,19999,19999), Phaser.Geom.Rectangle.Contains);
-    cont.once("pointerup", close);
+
+    // Erst nach kurzer Sperrzeit reagieren: Das Loslassen des Fingers vom
+    // Menü-Button landet sonst sofort hier und schließt den Brief, bevor
+    // man ihn gelesen hat.
+    const armedAt = performance.now() + 400;
+    const close = ()=> { if (performance.now() >= armedAt) this.closeIntro(KEY); };
+    cont.on("pointerdown", close);
+    cont.on("pointerup",   close);
   }
 
   closeIntro(KEY){
+    if (this._introClosing || !this.introOpen) return;   // nur einmal
+    this._introClosing = true;
+
+    // Sofort weiterspielen – das Ausblenden ist reine Optik und darf
+    // auf langsamen Geräten nicht die Steuerung blockieren.
+    this.introOpen = false;
+    try { localStorage.setItem(KEY, "1"); } catch(e){}
+    this.physics.world.resume();
+
     const cont = this.introOverlay;
     this.tweens.add({
       targets: cont, alpha: 0, duration: 180, ease: "Quad.easeIn",
       onComplete: ()=>{
         cont.setVisible(false);
-        try { localStorage.setItem(KEY, "1"); } catch(e){}
-        this.introOpen = false;
-        this.physics.world.resume();
+        this._introClosing = false;
       }
     });
   }

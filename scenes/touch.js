@@ -54,14 +54,17 @@ export default class TouchScene extends Phaser.Scene {
     TOUCH.x = 0; TOUCH.y = 0; TOUCH.active = false;
     this.stickId = null;
     this.maxR  = 100;
-    this.baseX = 250;
-    this.baseY = H - 250;
+    // Joystick rechts, Aktions-Button links
+    this.homeX = W - 250;
+    this.homeY = H - 250;
+    this.baseX = this.homeX;
+    this.baseY = this.homeY;
 
     // Mehrere Finger gleichzeitig (Joystick + Aktions-Button)
     this.input.addPointer(2);
     this.scene.bringToTop();
 
-    // ---------- Joystick ----------
+    // ---------- Joystick (rechte Bildschirmhälfte) ----------
     this.ring = this.add.circle(this.baseX, this.baseY, this.maxR, 0x07263a, 0.30)
       .setStrokeStyle(3, 0xaad4ff, 0.5).setDepth(10);
     this.thumb = this.add.circle(this.baseX, this.baseY, 40, 0xaad4ff, 0.5)
@@ -71,10 +74,10 @@ export default class TouchScene extends Phaser.Scene {
       stroke:"#000", strokeThickness:3
     }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(10);
 
-    // ---------- Aktions-Button (nur wo das Level einen braucht) ----------
+    // ---------- Aktions-Button links (nur wo das Level einen braucht) ----------
     this.actionArea = null;
     if (opts.action){
-      const bx = W - 250, by = H - 250, br = 92;
+      const bx = 250, by = H - 250, br = 92;
 
       this.actionBtn = this.add.circle(bx, by, br, 0x0d2e46, 0.85)
         .setStrokeStyle(4, 0xaad4ff, 0.9).setDepth(10);
@@ -123,12 +126,12 @@ export default class TouchScene extends Phaser.Scene {
   onDown(p){
     if (this.stickId !== null) return;                         // ein Finger reicht
     if (this.inActionArea(p) || this.inMenuArea(p)) return;    // Buttons haben Vorrang
-    if (p.x > this.scale.width * 0.55) return;                 // rechte Hälfte: keine Bewegung
+    if (p.x < this.scale.width * 0.45) return;                 // linke Hälfte: keine Bewegung
 
     const W = this.scale.width, H = this.scale.height;
     this.stickId = p.id;
     // Joystick erscheint dort, wo der Daumen aufsetzt
-    this.baseX = Phaser.Math.Clamp(p.x, this.maxR + 20, W * 0.5);
+    this.baseX = Phaser.Math.Clamp(p.x, W * 0.5, W - this.maxR - 20);
     this.baseY = Phaser.Math.Clamp(p.y, this.maxR + 20, H - this.maxR - 20);
     this.ring.setPosition(this.baseX, this.baseY);
     this.stickLabel.setAlpha(0);
@@ -157,7 +160,7 @@ export default class TouchScene extends Phaser.Scene {
     this.stickId = null;
     TOUCH.x = 0; TOUCH.y = 0; TOUCH.active = false;
 
-    this.baseX = 250; this.baseY = this.scale.height - 250;
+    this.baseX = this.homeX; this.baseY = this.homeY;
     this.ring.setPosition(this.baseX, this.baseY);
     this.thumb.setPosition(this.baseX, this.baseY);
     this.stickLabel.setPosition(this.baseX, this.baseY + this.maxR + 20).setAlpha(0.7);

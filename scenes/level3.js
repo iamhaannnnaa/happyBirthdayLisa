@@ -211,11 +211,15 @@ export default class Level3 extends Phaser.Scene {
         try { localStorage.setItem(this.introKey, "1"); } catch(e) {}
       };
       this.input.keyboard.once("keydown-SPACE", closeIntro);
-      // Tippen schließt ebenfalls (gleiche Technik wie in Level 2)
+      // Tippen schließt ebenfalls. Kurze Sperrzeit, damit das Loslassen
+      // des Fingers vom Menü-Button den Text nicht sofort wegklickt.
       this.introOverlay.setInteractive(
         new Phaser.Geom.Rectangle(-9999,-9999,19999,19999), Phaser.Geom.Rectangle.Contains
       );
-      this.introOverlay.once("pointerup", closeIntro);
+      const armedAt = performance.now() + 400;
+      const tapClose = ()=> { if (performance.now() >= armedAt) closeIntro(); };
+      this.introOverlay.on("pointerdown", tapClose);
+      this.introOverlay.on("pointerup",   tapClose);
     }
 
     // >>> NEU: Geschenk-Overlay vorbereiten

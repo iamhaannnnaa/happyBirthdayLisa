@@ -20,6 +20,9 @@
 <body>
   <div id="game-root"></div>
 
+  <!-- Vollbild -->
+  <button id="fs-btn" type="button" aria-label="Vollbild" hidden>⛶</button>
+
   <!-- Hinweis, wenn das Handy hochkant gehalten wird -->
   <div id="rotate-hint" aria-hidden="true">
     <div class="rotate-inner">
@@ -32,6 +35,9 @@
   <!-- Phaser als Global – liegt jetzt im Projekt, damit das Spiel auch
        ohne Internet/CDN startet (wichtig bei schlechtem Handy-Empfang) -->
   <script src="./vendor/phaser.min.js"></script>
+
+  <!-- Vollbild-Steuerung (kein Modul, damit sie sofort läuft) -->
+  <script src="./fullscreen.js"></script>
 
   <!-- Dein App-Entry -->
   <script type="module" src="./main.js"></script>

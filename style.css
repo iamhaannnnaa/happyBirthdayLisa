@@ -30,6 +30,29 @@ canvas {
   display: block;
 }
 
+/* ---------- Vollbild-Knopf ---------- */
+#fs-btn {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(121, 208, 255, 0.55);
+  background: rgba(11, 43, 59, 0.55);
+  color: #cfe9ff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#fs-btn.is-full { opacity: 0.3; }
+#fs-btn.is-full:hover, #fs-btn.is-full:active { opacity: 1; }
+#fs-btn:hover  { background: rgba(19, 64, 98, 0.8); }
+#fs-btn:active { transform: scale(0.94); }
+#fs-btn:focus-visible { outline: 2px solid #79d0ff; outline-offset: 2px; }
+
 /* ---------- Dreh-Hinweis (nur Touchgeräte im Hochformat) ---------- */
 #rotate-hint {
   display: none;
@@ -72,4 +95,5 @@ canvas {
 @media (orientation: portrait) and (pointer: coarse) {
   #rotate-hint { display: grid; }
   #game-root   { visibility: hidden; }
+  #fs-btn      { display: none; }
 }
