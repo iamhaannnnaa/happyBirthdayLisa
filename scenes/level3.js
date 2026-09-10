@@ -30,7 +30,7 @@ export default class Level3 extends Phaser.Scene {
     this.load.image("shark_zebra",       base + "zebrahai.png");
     // >>> NEU: Katzenhaie
     this.load.image("shark_nala", base + "Nala.png"); // Achtung: N groß
-    this.load.image("shark_luna", base + "Luna.png"); // Achtung: L groß
+    this.load.image("shark_luna", base + "Luna.png"); // zeigt Bibi (Datei heißt noch Luna.png)
 
     // Logbuch-Optik
     this.load.image("book_icon",       "assets/objects/level3/book_icon.png");
@@ -79,7 +79,7 @@ export default class Level3 extends Phaser.Scene {
       { id:"blue",        name:"Blauhai",        color:0x6aa6ff, tex:"shark_blue"        },
       { id:"zebra",       name:"Zebrahai",       color:0xe6d18f, tex:"shark_zebra"       },
       { id:"nala", name:"Nala", color:0xb7c9ff, tex:"shark_nala" }, // Farbe nur Fallback
-      { id:"luna", name:"Luna", color:0xffc4f5, tex:"shark_luna" },
+      { id:"luna", name:"Bibi", color:0xffc4f5, tex:"shark_luna" },  // Bilddatei heißt noch Luna.png
     ];
     for (const s of this.SPECIES) this.ensureBigDotTexture("dot_big_"+s.id, s.color, 120);
 
@@ -776,7 +776,7 @@ export default class Level3 extends Phaser.Scene {
 `hier draußen brauchst Du keinen Käfig – Deine Kamera reicht.
 
 Finde alle zwölf Haiarten und fotografiere sie. Zwei davon
-kennst Du längst: Nala und Luna.
+kennst Du längst: Nala und Bibi.
 
 ${touchEnabled()
   ? "Schwimm mit dem Joystick rechts, halte die Kamera auf einen\nHai und drück den 📷-Knopf links."

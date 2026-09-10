@@ -6,6 +6,10 @@ import { makeLetter } from "./ui.js";
 
 const DEBUG = false;
 
+// Bühnenmaße. Werden in create() auf die echte Größe gesetzt – die hängt
+// beim Handy vom Bildschirmverhältnis ab (siehe main.js).
+let W = 1920, H = 1080;
+
 export default class Level1 extends Phaser.Scene {
   constructor(){ super("Level1"); }
 
@@ -41,7 +45,7 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
   }
 
   create(){
-    const W=1920,H=1080;
+    W = this.scale.width; H = this.scale.height;
     this.cameras.main.setBackgroundColor("#06121f");
     this.cameras.main.setBounds(0,0,W,H);
     this.cameras.main.setRoundPixels(true);
@@ -233,7 +237,6 @@ einen rammt, verliert Luft.`;
 
   // ---- Coins ----
   spawnCoins(){
-    const W=1920, H=1080;
     this.coins = this.physics.add.group({ allowGravity:false, immovable:true });
 
     const margin = 60;
@@ -243,7 +246,7 @@ einen rammt, verliert Luft.`;
     const avoids = [
       { x: W*0.12,  y: H*0.45,  w: 420, h: 300 },
       { x: 0,       y: 0,       w: 380, h: 130 },
-      { x: W - 440, y: 0,       w: 440, h: 150 },
+      { x: W - 460, y: 0,       w: 460, h: 210 },
       { x: W - 470, y: H - 470, w: 470, h: 470 },
       { x: W/2-230, y: H - 150, w: 460, h: 150 }
     ];
@@ -289,7 +292,6 @@ einen rammt, verliert Luft.`;
 
   // ---- Triggerfische ----
   spawnTriggerfish(){
-    const W=1920, H=1080;
     this.fishGroup = this.physics.add.group({ allowGravity:false });
 
     const margin = 60;
@@ -335,7 +337,7 @@ einen rammt, verliert Luft.`;
   // Wenden am Rand. Vorher liefen sie stur auf einer Linie hin und her.
   updateFish(dt){
     if (!this.fishList) return;
-    const W = 1920, H = 1080, margin = 130;
+    const margin = 130;
     const s = Math.min(dt, 50) / 1000;
 
     for (const f of this.fishList){

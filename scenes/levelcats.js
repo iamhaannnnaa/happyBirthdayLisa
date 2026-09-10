@@ -44,7 +44,7 @@ const MOEBEL = [
     leer:"Nur Bücher. Sehr viele Bücher." },
   { id:"tisch",  tex:"table",  x: 760, y: 300, w:260, h:160, such:true,
     leer:"Auf dem Tisch: kalter Kaffee. Sonst nichts." },
-  { id:"pflanze",tex:"plant",  x: 830, y: 760, w:110, h:100, such:false },
+  { id:"pflanze",tex:"plant",  x: 830, y: 760, w:110, h:100, such:false, deko:true },
 
   // --- Schlafzimmer (unten links) ---
   { id:"bett",   tex:"bed",    x: 340, y:1240, w:320, h:280, such:true,
@@ -59,7 +59,7 @@ const MOEBEL = [
     leer:"Auf der Küchenzeile: Brotkrümel und eine Kerze." },
   { id:"kommode2",tex:"dresser",x:1900, y: 180, w:260, h:130, such:true,
     leer:"Besteckschublade. Klappert, hilft aber nicht." },
-  { id:"pflanze2",tex:"plant", x:1980, y: 600, w:110, h:100, such:false },
+  { id:"pflanze2",tex:"plant", x:1980, y: 600, w:110, h:100, such:false, deko:true },
 
   // --- Flur (unten rechts) ---
   { id:"sofa2",  tex:"sofa",   x:1360, y:1620, w:360, h:210, such:true,
@@ -83,7 +83,7 @@ const MOEBEL = [
 ];
 
 // Futtersack in der Küche – hier gibt es Nachschub, damit nie Schluss ist
-const SACK = { x: 1120, y: 560 };
+const SACK = { x: 1720, y: 1000 };
 
 export default class LevelCats extends Phaser.Scene {
   constructor(){ super("LevelCats"); }
@@ -108,7 +108,7 @@ export default class LevelCats extends Phaser.Scene {
     this.physics.world.setBounds(T, T, WW-T*2, WH-T*2);
 
     this.gefunden = {};
-    this.futter   = 3;
+    this.futter   = 0;
     this.fertig   = false;
     this.suchVersuche = 0;
     this.hinweisGegeben = false;
@@ -173,9 +173,13 @@ export default class LevelCats extends Phaser.Scene {
     for (const m of MOEBEL){
       const img = this.add.image(m.x, m.y, m.tex).setDepth(100 + m.y/100);
       img.setDisplaySize(m.w * 1.22, m.h * 1.30);
-      const body = this.add.rectangle(m.x, m.y + 6, m.w, m.h, 0x000000, 0);
-      this.physics.add.existing(body, true);
-      this.moebel.add(body);
+      // Deko (Blumentöpfe) blockiert nicht – dahinter hatte sich eine Katze
+      // festgeklemmt und kam nicht mehr weg.
+      if (!m.deko){
+        const body = this.add.rectangle(m.x, m.y + 6, m.w, m.h, 0x000000, 0);
+        this.physics.add.existing(body, true);
+        this.moebel.add(body);
+      }
       if (m.such) this.suchbar.push(Object.assign({}, m, { img }));
     }
 
@@ -245,7 +249,7 @@ export default class LevelCats extends Phaser.Scene {
       c.setData("halo", halo);
       return c;
     };
-    this.katzeA = mk(600, 500,  "cat_a_foto", "Die Getigerte", GEAR[1]);
+    this.katzeA = mk(2400, 500,  "cat_a_foto", "Die Getigerte", GEAR[1]);
     this.katzeB = mk(2800, 1200,"cat_b_foto", "Die Kleine",    GEAR[2]);
 
     this.physics.add.collider(this.cats, this.walls);
@@ -274,7 +278,7 @@ export default class LevelCats extends Phaser.Scene {
       this.hud.add([ico, txt]);
     });
 
-    this.futterTxt = this.add.text(Wd-40, 40, "🐟 Futter: 3", {
+    this.futterTxt = this.add.text(Wd-40, 40, "🐟 Futter: 0", {
       fontFamily:"system-ui, sans-serif", fontSize:"28px", color:"#f0e4c8",
       stroke:"#000", strokeThickness:3
     }).setOrigin(1,0).setDepth(9000).setScrollFactor(0);
@@ -300,13 +304,15 @@ Maske, Flossen und Lampe – alle drei.
 Zwei davon tragen die Katzen mit sich herum, quer durch die
 Wohnung und bis in den Garten. Läufst Du auf sie zu, rennen
 sie weg. Leg ihnen Futter hin und schnapp sie Dir beim Fressen.
-Nachschub gibt es am Futtersack in der Küche.
 
-Das dritte Teil liegt irgendwo im Haus. Stell Dich vor ein
-Möbelstück und drück den Knopf, um nachzusehen.`;
+Du hast noch kein Futter dabei: Der Sack steht im Zimmer
+ganz unten rechts. Da kannst Du Dir immer wieder welches holen.
+
+Das dritte Teil liegt irgendwo im Haus oder im Garten. Stell
+Dich davor und drück den Knopf, um nachzusehen.`;
 
     this.intro = makeLetter(this, {
-      body: brief, height: 560,
+      body: brief, height: 600,
       footer: touchEnabled()
         ? "Joystick rechts bewegt Dich · 🐟 links = Futter / Nachsehen"
         : "Pfeiltasten oder [WASD] bewegen · [Leertaste] Futter / Nachsehen",
@@ -397,7 +403,7 @@ Möbelstück und drück den Knopf, um nachzusehen.`;
 
   futterHinlegen(){
     if (this.futter <= 0){
-      showNote(this, this.note, "Kein Futter mehr. Nachschub gibt es in der Küche.", { ms: 1700 });
+      showNote(this, this.note, "Kein Futter dabei. Der Sack steht im Zimmer unten rechts.", { ms: 1900 });
       return;
     }
     if (this.napf && this.napf.active) this.napf.destroy();
@@ -506,6 +512,20 @@ Möbelstück und drück den Knopf, um nachzusehen.`;
         return;
       }
 
+      // Steckengeblieben? Wer sich trotz Vollgas kaum bewegt, sucht sich
+      // ein neues Ziel – sonst hängt eine Katze ewig in einer Ecke.
+      const last = c.getData("last") || { x:c.x, y:c.y };
+      const bewegt = Phaser.Math.Distance.Between(c.x, c.y, last.x, last.y);
+      c.setData("last", { x:c.x, y:c.y });
+      let fest = c.getData("fest") || 0;
+      fest = (bewegt < 1.2) ? fest + dt : 0;
+      c.setData("fest", fest);
+      if (fest > 1.2){
+        c.setData("fest", 0);
+        c.setData("target", null);
+        c.setData("timer", 0);
+      }
+
       let t = c.getData("target");
       c.setData("timer", c.getData("timer") - dt);
       if (!t || c.getData("timer") <= 0 ||
@@ -607,20 +627,16 @@ Möbelstück und drück den Knopf, um nachzusehen.`;
     const lay = this.add.container(Wd/2, Hd/2).setScrollFactor(0).setDepth(21000);
     lay.add(this.add.rectangle(0,0,Wd*2,Hd*2,0x05080b,0.96));
 
-    const titel = this.add.text(0, -Hd*0.42, "Deine zwei Chaoten", {
-      fontFamily:SERIF, fontSize:"34px", color:"#f4e7cd", fontStyle:"italic"
-    }).setOrigin(0.5);
-    lay.add(titel);
-
+    // Bewusst ohne Titel und Beschriftung – es soll nur das Video wirken.
     let video = null;
     try {
-      video = this.add.video(0, 10);
+      video = this.add.video(0, 0);
       video.setDepth(1);
       lay.add(video);
       // Erst wenn die Größe bekannt ist, kann sauber skaliert werden
       const anpassen = ()=>{
         const vw = video.width || 406, vh = video.height || 720;
-        const sc = Math.min((Wd*0.92)/vw, (Hd*0.70)/vh);
+        const sc = Math.min((Wd*0.94)/vw, (Hd*0.88)/vh);
         video.setScale(sc);
       };
       video.on("created", ()=>{ anpassen(); try { video.play(false); } catch(e){} });
@@ -637,10 +653,11 @@ Möbelstück und drück den Knopf, um nachzusehen.`;
     }
     this.video = video;
 
-    const zu = this.add.rectangle(0, Hd*0.40, 300, 58, 0x3a2a18, 1)
-      .setStrokeStyle(2, 0xd8c9a8, 0.7).setInteractive({useHandCursor:true});
-    const zuT = this.add.text(0, Hd*0.40, "Schließen", {
-      fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#f4e7cd"
+    // Nur ein kleines Kreuz oben rechts zum Schließen
+    const zu = this.add.circle(Wd*0.44, -Hd*0.41, 34, 0x1a1410, 0.85)
+      .setStrokeStyle(2, 0xd8c9a8, 0.6).setInteractive({useHandCursor:true});
+    const zuT = this.add.text(Wd*0.44, -Hd*0.41, "✕", {
+      fontFamily:"system-ui, sans-serif", fontSize:"30px", color:"#f4e7cd"
     }).setOrigin(0.5);
     lay.add([zu, zuT]);
 

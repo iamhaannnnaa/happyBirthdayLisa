@@ -11,7 +11,9 @@ import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
 import { makeLetter, makeNote, showNote, SERIF, INK } from "./ui.js";
 
-const W = 1920, H = 1080;
+// Bühnenmaße – in create() an den Bildschirm angepasst (siehe main.js)
+let W = 1920, H = 1080;
+const REF_W = 1920;   // Bezugsbreite, auf der die Stationen geplant sind
 
 export const FRAGEN = [
   {
@@ -91,6 +93,7 @@ export default class LevelMemory extends Phaser.Scene {
   }
 
   create(){
+    W = this.scale.width; H = this.scale.height;
     this.cameras.main.setBackgroundColor("#06121f");
     this.cameras.main.setBounds(0,0,W,H);
     this.physics.world.setBounds(60, 60, W-120, H-120);
@@ -171,7 +174,8 @@ export default class LevelMemory extends Phaser.Scene {
   buildStations(){
     this.stationen = [];
     FRAGEN.forEach((f, i)=>{
-      const p = STATIONEN[i % STATIONEN.length];
+      const roh = STATIONEN[i % STATIONEN.length];
+      const p = { x: roh.x * (W / REF_W), y: roh.y * (H / 1080) };
       const cont = this.add.container(p.x, p.y).setDepth(120);
 
       const glow = this.add.circle(0, 0, 62, 0x9fe4ff, 0.16);
@@ -276,8 +280,8 @@ Hast Du alle, geht es weiter.`;
     // Frage oben auf einem Pergamentstreifen
     const band = this.add.container(W/2, 150).setDepth(6000).setScrollFactor(0).setAlpha(0);
     const paper = this.textures.exists("parchment")
-      ? this.add.image(0,0,"parchment").setDisplaySize(1080, 170)
-      : this.add.rectangle(0,0,1080,170,0xe9dcbf,1);
+      ? this.add.image(0,0,"parchment").setDisplaySize(Math.min(1180, W*0.62), 170)
+      : this.add.rectangle(0,0,Math.min(1180, W*0.62),170,0xe9dcbf,1);
     paper.setAngle(-0.6);
     const txt = this.add.text(0, 0, f.frage, {
       fontFamily:SERIF, fontSize:"34px", color:INK, align:"center",
