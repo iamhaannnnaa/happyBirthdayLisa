@@ -53,13 +53,24 @@ export function zeigeVideo(scene, urls, onClose){
   scene._laufendesVideo = video;
 
   // links oben – rechts oben sitzt schon der Vollbild-Knopf der Seite
+  // scrollFactor(0) muss auf dem Knopf selbst stehen, nicht nur auf dem
+  // Container – sonst rechnet Phaser die Trefferfläche mit dem Kamera-Versatz
+  // um und der Knopf reagiert in mitfahrenden Levels nicht.
   const zu = scene.add.circle(-W*0.44, -H*0.41, 34, 0x1a1410, 0.85)
-    .setStrokeStyle(2, 0xd8c9a8, 0.6).setInteractive({ useHandCursor:true });
+    .setStrokeStyle(2, 0xd8c9a8, 0.6)
+    .setScrollFactor(0)
+    .setInteractive({ useHandCursor:true });
   const zuT = scene.add.text(-W*0.44, -H*0.41, "✕", {
     fontFamily:"system-ui, sans-serif", fontSize:"30px", color:"#f4e7cd"
-  }).setOrigin(0.5);
+  }).setOrigin(0.5).setScrollFactor(0);
   lay.add([zu, zuT]);
   zu.on("pointerdown", schliessen);
+
+  // Sicherheitsnetz: Tipp oben links schließt das Video auch dann
+  scene.input.on("pointerdown", (p)=>{
+    if (!lay.active) return;
+    if (p.x < W*0.14 && p.y < H*0.16) schliessen();
+  });
 
   return lay;
 }

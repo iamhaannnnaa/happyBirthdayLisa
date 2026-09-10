@@ -606,18 +606,38 @@ Dich davor und drück den Knopf, um nachzusehen.`;
         fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#d3bd97"
       }).setOrigin(0.5));
     }
+    // Wichtig: setScrollFactor(0) auch auf den Knöpfen selbst. Die Kamera
+    // fährt in diesem Level mit – ohne das rechnet Phaser die Trefferfläche
+    // mit dem Kamera-Versatz um und die Knöpfe reagieren nicht mehr.
+    const knoepfe = [];
     const btn = (txt, y, cb)=>{
       const r = this.add.rectangle(0, y, 420, 62, 0x3a2a18, 1)
-        .setStrokeStyle(2, 0xd8c9a8, 0.7).setInteractive({useHandCursor:true});
+        .setStrokeStyle(2, 0xd8c9a8, 0.7)
+        .setScrollFactor(0)
+        .setInteractive({useHandCursor:true});
       const t = this.add.text(0, y, txt, {
         fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#f4e7cd"
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setScrollFactor(0);
       r.on("pointerdown", cb);
       lay.add([r, t]);
+      knoepfe.push({ y, cb });
+      return r;
     };
     btn("▶  Kleine Erinnerung ansehen", -8, ()=> { lay.setVisible(false); this.zeigeVideo(()=> lay.setVisible(true)); });
     btn("Weiter",  70,  ()=> this.scene.start("MenuScene"));
     btn("Nochmal", 146, ()=> this.scene.restart());
+
+    // Sicherheitsnetz: Tipp auf Bildschirmhöhe auswerten, falls eine
+    // Trefferfläche doch mal danebenliegt.
+    this.input.on("pointerdown", (p)=>{
+      if (!lay.active || !lay.visible) return;
+      if (Math.abs(p.x - Wd/2) > 230) return;
+      const rel = p.y - Hd/2;
+      for (const k of knoepfe){
+        if (Math.abs(rel - k.y) <= 34){ k.cb(); return; }
+      }
+    });
+
     this.endPanel = lay;
   }
 
