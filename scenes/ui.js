@@ -221,3 +221,79 @@ export function showNote(scene, cont, text, opts){
     }
   });
 }
+
+// Einheitlicher Abschluss-Bildschirm für alle Level.
+// opts: { titel, untertitel, video:[urls] , next:"SzenenName", nextLabel:"Level 3 – …" }
+// Knöpfe: [▶ Erinnerung ansehen] [Weiter zu …] [Zum Menü]
+// „Nochmal“ gibt es bewusst nicht – wer neu anfangen will, geht übers Menü.
+export function makeEndPanel(scene, opts){
+  const o = Object.assign({ titel:"", untertitel:"", video:null, next:null, nextLabel:"" }, opts || {});
+  const W = scene.scale.width, H = scene.scale.height;
+
+  // Bedienknöpfe des Levels ausblenden
+  const ts = scene.scene.get("TouchScene");
+  if (ts && ts.scene.isVisible()) ts.scene.setVisible(false);
+
+  const knopfListe = [];
+  if (o.video) knopfListe.push({ txt:"▶  Erinnerung ansehen", art:"video" });
+  if (o.next)  knopfListe.push({ txt: o.nextLabel ? `Weiter zu ${o.nextLabel}` : "Weiter", art:"next" });
+  knopfListe.push({ txt:"Zum Menü", art:"menu" });
+
+  const hoch = 254 + (knopfListe.length - 1) * 78;
+  const lay = scene.add.container(W/2, H/2).setScrollFactor(0).setDepth(20000);
+  lay.add(scene.add.rectangle(0, 0, W*2, H*2, 0x000000, 0.62).setScrollFactor(0));
+  lay.add(scene.add.rectangle(0, 0, 820, hoch, 0x071a2b, 0.97)
+    .setStrokeStyle(3, 0xaad4ff, 0.85).setScrollFactor(0));
+
+  const kopf = -hoch/2 + 54;
+  lay.add(scene.add.text(0, kopf, o.titel, {
+    fontFamily: SERIF, fontSize:"38px", color:"#e6f0ff", fontStyle:"italic",
+    align:"center", wordWrap:{ width: 720 }
+  }).setOrigin(0.5).setScrollFactor(0));
+  if (o.untertitel){
+    lay.add(scene.add.text(0, kopf + 46, o.untertitel, {
+      fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff",
+      align:"center", wordWrap:{ width: 700 }
+    }).setOrigin(0.5).setScrollFactor(0));
+  }
+
+  const treffer = [];
+  knopfListe.forEach((k, i)=>{
+    const y = -hoch/2 + 160 + i*78;
+    const r = scene.add.rectangle(0, y, 560, 62, 0x0d2e46, 1)
+      .setStrokeStyle(2, 0xaad4ff, 0.7)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor:true });
+    const t = scene.add.text(0, y, k.txt, {
+      fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#cfe9ff"
+    }).setOrigin(0.5).setScrollFactor(0);
+    r.on("pointerover", ()=> r.setFillStyle(0x134062, 1));
+    r.on("pointerout",  ()=> r.setFillStyle(0x0d2e46, 1));
+
+    const tun = ()=>{
+      if (k.art === "video"){
+        lay.setVisible(false);
+        zeigeVideo(scene, o.video, ()=> lay.setVisible(true));
+      } else if (k.art === "next"){
+        scene.scene.start(o.next);
+      } else {
+        scene.scene.start("MenuScene");
+      }
+    };
+    r.on("pointerdown", tun);
+    treffer.push({ y, tun });
+    lay.add([r, t]);
+  });
+
+  // Sicherheitsnetz, falls eine Trefferfläche doch mal danebenliegt
+  scene.input.on("pointerdown", (p)=>{
+    if (!lay.active || !lay.visible) return;
+    if (Math.abs(p.x - W/2) > 300) return;
+    const rel = p.y - H/2;
+    for (const k of treffer){
+      if (Math.abs(rel - k.y) <= 34){ k.tun(); return; }
+    }
+  });
+
+  return lay;
+}

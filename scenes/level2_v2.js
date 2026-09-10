@@ -2,7 +2,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
-import { makeNote, showNote } from "./ui.js";
+import { makeNote, showNote, makeEndPanel } from "./ui.js";
 
 const DEBUG = false;
 
@@ -507,8 +507,8 @@ export default class Level2 extends Phaser.Scene {
     if (this.textures.exists("diver")) this.player.play("diver_idle");
     markLevelDone("Level2");                     // schaltet das nächste Level frei
     const nx = nextLevel("Level2");
-    this.showEndPanel("Level geschafft! 🎉",
-      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "");
+    this.showEndPanel("Level geschafft!",
+      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "", nx);
   }
 
   fail(msg){
@@ -516,31 +516,18 @@ export default class Level2 extends Phaser.Scene {
     this.gameOver = true;
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
-    this.showEndPanel(msg || "Game Over");
+    this.showEndPanel(msg || "Geschafft ist anders …", "Im Menü kannst Du es nochmal versuchen.");
   }
 
-  showEndPanel(title, subtitle){
-    const W=this.scale.width, H=this.scale.height;
-    const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0).setDepth(10000);
-    const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0).setDepth(10001);
-    this.add.text(W/2,H/2-100,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
-      stroke:"#000", strokeThickness:4 }).setOrigin(0.5).setScrollFactor(0).setDepth(10002);
-    if (subtitle){
-      this.add.text(W/2,H/2-56,subtitle,{ fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff",
-        stroke:"#000", strokeThickness:3 }).setOrigin(0.5).setScrollFactor(0).setDepth(10002);
-    }
-
-    const makeBtn = (txt, y, onClick)=>{
-      const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(10002).setInteractive({ useHandCursor:true });
-      const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff", stroke:"#000", strokeThickness:3 })
-        .setOrigin(0.5).setScrollFactor(0).setDepth(10003);
-      r.on("pointerover", ()=>r.setFillStyle(0x134062,1));
-      r.on("pointerout",  ()=>r.setFillStyle(0x0d2e46,1));
-      r.on("pointerdown", ()=>{ onClick(); dim.destroy(); panel.destroy(); r.destroy(); t.destroy(); });
-    };
-    makeBtn("Nochmal",  H/2+10, ()=> this.scene.restart());
-    makeBtn("Zum Menü", H/2+80, ()=> this.scene.start("MenuScene"));
+  showEndPanel(title, subtitle, next){
+    makeEndPanel(this, {
+      titel: title,
+      untertitel: subtitle,
+      next: next || null,
+      nextLabel: next ? levelTitle(next) : ""
+    });
   }
+
 
   // ====== Helpers / Assets ======
   makeSimpleTextures(){

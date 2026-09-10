@@ -9,7 +9,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
-import { makeLetter, makeNote, showNote, SERIF, INK } from "./ui.js";
+import { makeLetter, makeNote, showNote, makeEndPanel, SERIF, INK } from "./ui.js";
 
 // Bühnenmaße – in create() an den Bildschirm angepasst (siehe main.js)
 let W = 1920, H = 1080;
@@ -17,46 +17,48 @@ const REF_W = 1920;   // Bezugsbreite, auf der die Stationen geplant sind
 
 export const FRAGEN = [
   {
-    frage: "Wo sind wir mit Delfinen geschwommen?",
-    antworten: ["Mexiko", "Malediven", "Kroatien"],
+    frage: "Welche Nationalmannschaft haben wir am Flughafen getroffen?",
+    antworten: ["Costa Rica", "Mexiko", "Brasilien"],
     richtig: 0,
-    foto: "memo_delfine",
-    notiz: "Delfine in Mexiko – Du wolltest gar nicht mehr aus dem Wasser."
+    foto: "memo_mexiko_flughafen",
+    notiz: "Costa Rica. Zwei kleine Mädchen und eine ganze Nationalmannschaft."
   },
   {
-    frage: "Welcher Riese ist uns beim Tauchen begegnet?",
-    antworten: ["Walhai", "Schwertfisch", "Zackenbarsch"],
+    frage: "Welches Neujahr haben wir auf Hawaii gefeiert?",
+    antworten: ["07/08", "06/07", "08/09"],
     richtig: 0,
-    foto: "memo_walhai",
-    notiz: "Ein Walhai. Größer als das Boot und völlig entspannt."
+    foto: "memo_hawaii_silvester",
+    notiz: "Silvester 07/08 auf Hawaii. Luftballons, Papierhüte und viel zu lange wach."
   },
   {
-    frage: "Wer gleitet wie ein fliegender Teppich durchs Wasser?",
-    antworten: ["Manta", "Seestern", "Krake"],
+    frage: "Welche Sprache stand außer Englisch auf dem Schild am Kap der Guten Hoffnung?",
+    antworten: ["Afrikaans", "Niederländisch", "Zulu"],
     richtig: 0,
-    foto: "memo_manta",
-    notiz: "Mantas – lautlos über uns weggeflogen."
+    foto: "memo_kap_gute_hoffnung",
+    notiz: "Afrikaans. Klingt wie Niederländisch, ist aber eine eigene Sprache."
   },
   {
-    frage: "Auf welcher Insel waren wir?",
-    antworten: ["Hawaii", "Bali", "Kreta"],
+    frage: "Auf welcher Insel auf den Malediven waren wir als Erstes?",
+    antworten: ["Vakarufalhi", "Vilamendhoo", "Ellaidhoo"],
     richtig: 0,
-    foto: "memo_hawaii",
-    notiz: "Hawaii. Schwarzer Sand und viel zu viele Fotos."
+    foto: null,                       // Bild kommt noch
+    notiz: "Vakarufalhi – die erste von vielen Inseln."
   },
   {
-    frage: "In welchem Land waren wir ganz unten auf der Karte?",
-    antworten: ["Südafrika", "Australien", "Argentinien"],
+    frage: "Findest Du Hanna cool?",
+    antworten: ["Ja", "Nein"],
     richtig: 0,
-    foto: "memo_suedafrika",
-    notiz: "Südafrika – und Du hast wieder jedes Tier angefasst."
+    flieht: [1],                      // „Nein“ schwimmt weg und ist nie wählbar
+    foto: "memo_wir_klein",
+    notiz: "Kleine Schwester, große Schwester. Daran hat sich nichts geändert."
   },
   {
-    frage: "Wer wohnt bei Lisa im Terrarium?",
-    antworten: ["Eine Schlange", "Ein Gecko", "Eine Vogelspinne"],
+    frage: "Von wann ist dieses Bild?",
+    antworten: ["2013", "2011", "2014"],
     richtig: 0,
-    foto: null,
-    notiz: "Deine Schlange. Die einzige, die nie mit ins Wasser will."
+    frageFoto: "frage_schwestern_2013",   // Ausschnitt ohne Datum
+    foto: "memo_schwestern_2013",          // volles Bild mit Datum
+    notiz: "11. September 2013 – das Datum steht unten rechts im Bild."
   }
 ];
 
@@ -88,7 +90,8 @@ export default class LevelMemory extends Phaser.Scene {
     // Urlaubsfotos – fehlen sie, zeigt das Polaroid nur den Text
     this.load.on("loaderror", ()=>{});
     for (const f of FRAGEN){
-      if (f.foto) this.load.image(f.foto, `assets/objects/memories/${f.foto}.jpg`);
+      if (f.foto)      this.load.image(f.foto,      `assets/objects/memories/${f.foto}.jpg`);
+      if (f.frageFoto) this.load.image(f.frageFoto, `assets/objects/memories/${f.frageFoto}.jpg`);
     }
   }
 
@@ -125,7 +128,11 @@ export default class LevelMemory extends Phaser.Scene {
     const toMenu = ()=> this.scene.start("MenuScene");
     this.input.keyboard.on("keydown-ESC", toMenu);
     this.game.events.on("touch-menu", toMenu);
-    this.events.once("shutdown", ()=> this.game.events.off("touch-menu", toMenu));
+    this.events.once("shutdown", ()=>{
+      this.game.events.off("touch-menu", toMenu);
+      const ts = this.scene.get("TouchScene");
+      if (ts) ts.scene.setVisible(true);
+    });
     startTouch(this, { action:false });
 
     // Luft läuft nur, wenn keine Frage und kein Brief offen ist
@@ -277,17 +284,41 @@ Hast Du alle, geht es weiter.`;
 
     const f = st.frage;
 
-    // Frage oben auf einem Pergamentstreifen
-    const band = this.add.container(W/2, 150).setDepth(6000).setScrollFactor(0).setAlpha(0);
+    // Frage oben auf einem Pergamentstreifen – bei Bedarf mit Bild daneben
+    const mitBild = !!(f.frageFoto && this.textures.exists(f.frageFoto));
+    const bandH = mitBild ? 300 : 170;
+    const bandW = Math.min(mitBild ? 1120 : 1180, W * (mitBild ? 0.58 : 0.62));
+    const band = this.add.container(W/2, mitBild ? 200 : 150)
+      .setDepth(6000).setScrollFactor(0).setAlpha(0);
     const paper = this.textures.exists("parchment")
-      ? this.add.image(0,0,"parchment").setDisplaySize(Math.min(1180, W*0.62), 170)
-      : this.add.rectangle(0,0,Math.min(1180, W*0.62),170,0xe9dcbf,1);
+      ? this.add.image(0,0,"parchment").setDisplaySize(bandW, bandH)
+      : this.add.rectangle(0,0,bandW,bandH,0xe9dcbf,1);
     paper.setAngle(-0.6);
-    const txt = this.add.text(0, 0, f.frage, {
-      fontFamily:SERIF, fontSize:"34px", color:INK, align:"center",
-      wordWrap:{ width: 940 }
+    band.add(paper);
+
+    let textX = 0, textBreite = bandW - 180;
+    if (mitBild){
+      const src = this.textures.get(f.frageFoto).getSourceImage();
+      const sc = Math.min((bandH - 56) / src.height, (bandW*0.40) / src.width);
+      const bw = src.width * sc;
+      const bild = this.add.image(-bandW/2 + 48 + bw/2, 0, f.frageFoto)
+        .setScale(sc).setAngle(-0.6);
+      // heller Rahmen wie bei einem aufgeklebten Foto
+      const rahmen = this.add.rectangle(bild.x, bild.y, bw + 16, src.height*sc + 16, 0xfdf8ec, 1)
+        .setStrokeStyle(2, 0xc9bda3, 1).setAngle(-0.6);
+      band.add([rahmen, bild]);
+      // Text mittig in dem, was rechts vom Bild übrig bleibt
+      const links = -bandW/2 + 48 + bw + 28;
+      const rechts = bandW/2 - 44;
+      textX = (links + rechts) / 2;
+      textBreite = rechts - links;
+    }
+
+    const txt = this.add.text(textX, 0, f.frage, {
+      fontFamily:SERIF, fontSize: mitBild ? "30px" : "34px", color:INK, align:"center",
+      lineSpacing: 4, wordWrap:{ width: textBreite }
     }).setOrigin(0.5).setAngle(-0.6);
-    band.add([paper, txt]);
+    band.add(txt);
     this.tweens.add({ targets: band, alpha:1, duration:220, ease:"Quad.easeOut" });
     this.frageBand = band;
 
@@ -295,8 +326,10 @@ Hast Du alle, geht es weiter.`;
     // Kurze Sperre, damit nichts platzt, während die Blasen erst erscheinen.
     this.blasen = [];
     this.blasenAb = performance.now() + 600;
+    this.fluchtVersuche = 0;
+    this.fluchtHinweis = false;
     const reihenfolge = Phaser.Utils.Array.Shuffle(f.antworten.map((a,i)=>({ a, i })));
-    const spots = this.blasenPlaetze(st.x, st.y, reihenfolge.length);
+    const spots = this.blasenPlaetze(st.x, st.y, reihenfolge.length, band.y + bandH/2 + 130);
 
     reihenfolge.forEach((eintrag, k)=>{
       const pos = spots[k];
@@ -313,6 +346,8 @@ Hast Du alle, geht es weiter.`;
       b.setData("r", r);
       b.setData("phase", Math.random()*Math.PI*2);
       b.setData("home", { x: pos.x, y: pos.y });
+      // Manche Antworten lassen sich nicht anklicken – sie schwimmen weg
+      b.setData("flieht", Array.isArray(f.flieht) && f.flieht.indexOf(eintrag.i) !== -1);
       this.tweens.add({ targets: b, scale: 1.06, duration: 1500 + k*180,
                         yoyo:true, repeat:-1, ease:"Sine.easeInOut" });
       this.blasen.push(b);
@@ -325,12 +360,15 @@ Hast Du alle, geht es weiter.`;
   // im Bild, weit genug auseinander und nicht direkt auf der Spielerin.
   // (Vorher wurden Positionen an den Rand geklemmt – dann lagen zwei Blasen
   // übereinander und eine platzte sofort beim Ankommen.)
-  blasenPlaetze(x, y, n){
+  blasenPlaetze(x, y, n, minY){
     const R = 340, MIN = 300;
+    const oben = minY || 320;
     const passt = (px, py, out)=>
-      px > 240 && px < W-240 && py > 320 && py < H-240 &&
+      px > 240 && px < W-240 && py > oben && py < H-240 &&
       Phaser.Math.Distance.Between(px, py, x, y) > 260 &&
       Phaser.Math.Distance.Between(px, py, this.player.x, this.player.y) > 240 &&
+      Phaser.Math.Distance.Between(px, py, W - 250, H - 250) > 280 &&   // Joystick
+      !(Math.abs(px - W/2) < 220 && py > H - 200) &&                    // Menü-Knopf
       !out.some(p => Phaser.Math.Distance.Between(p.x, p.y, px, py) < MIN);
 
     const out = [];
@@ -344,11 +382,11 @@ Hast Du alle, geht es weiter.`;
     let schutz = 0;
     while (out.length < n && schutz++ < 400){
       const px = Phaser.Math.Between(260, W-260);
-      const py = Phaser.Math.Between(340, H-260);
+      const py = Phaser.Math.Between(oben + 20, H-260);
       if (passt(px, py, out)) out.push({ x:px, y:py });
     }
     while (out.length < n){   // absoluter Notfall
-      out.push({ x: 320 + out.length*640, y: 700 });
+      out.push({ x: 320 + out.length*640, y: Math.max(700, oben + 120) });
     }
     return out;
   }
@@ -372,10 +410,13 @@ Hast Du alle, geht es weiter.`;
     } else {
       this.platzen(b, 0xff8f8f);
       this.blasen = this.blasen.filter(x=>x !== b);
-      this.oxygen = Math.max(0, this.oxygen - 8);
+      // Falsche Antwort kostet fast die ganze Luft – ab jetzt wird es eng.
+      const RESTLUFT = 20;                       // Sekunden, die übrig bleiben
+      this.oxygen = Math.min(this.oxygen, RESTLUFT);
       this.updateOxygenBar();
-      this.cameras.main.shake(160, 0.006);
-      showNote(this, this.note, "Leider nicht. Das kostet Luft.", { ms: 1100 });
+      this.cameras.main.shake(260, 0.012);
+      this.cameras.main.flash(180, 255, 90, 90, false);
+      showNote(this, this.note, "Leider nicht. Da ist fast die ganze Luft weg!", { ms: 1500 });
       if (this.oxygen <= 0) this.fail("Keine Luft mehr!");
     }
   }
@@ -402,6 +443,11 @@ Hast Du alle, geht es weiter.`;
 
   // ---------- Polaroid ----------
   polaroidZeigen(f){
+    // Bedienknöpfe kurz ausblenden – das Bild soll allein wirken
+    const ts = this.scene.get("TouchScene");
+    const tsWar = !!(ts && ts.scene.isVisible());
+    if (tsWar) ts.scene.setVisible(false);
+
     const lay = this.add.container(W/2, H/2).setDepth(15000).setScrollFactor(0).setAlpha(0);
     const dim = this.add.rectangle(0,0,W*2,H*2,0x03121c,0.82);
     lay.add(dim);
@@ -456,6 +502,7 @@ Hast Du alle, geht es weiter.`;
       if (performance.now() < armedAt) return;
       if (!this.polaroid) return;
       const l = this.polaroid; this.polaroid = null;
+      if (tsWar && ts) ts.scene.setVisible(true);
       this.input.off("pointerdown", close);
       this.tweens.add({ targets:l, alpha:0, duration:200, onComplete: ()=> l.destroy() });
       this.frageOffen = false;
@@ -493,12 +540,43 @@ Hast Du alle, geht es weiter.`;
       }
     }
 
-    // Blasen treiben leicht
+    // Blasen treiben leicht – und die fliehende weicht aus
     if (this.blasen){
       const t = time / 1000;
+      const dt = Math.min(delta, 50) / 1000;
       for (const b of this.blasen){
         if (!b.active) continue;
         const home = b.getData("home"), ph = b.getData("phase");
+
+        if (b.getData("flieht")){
+          const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, home.x, home.y);
+          if (d < 430){
+            // vom Spieler wegschieben, aber im Bild bleiben
+            const a = Math.atan2(home.y - this.player.y, home.x - this.player.x);
+            const tempo = 340 + (430 - d) * 2.1;   // je näher, desto schneller weg
+            home.x = Phaser.Math.Clamp(home.x + Math.cos(a) * tempo * dt, 220, W - 220);
+            home.y = Phaser.Math.Clamp(home.y + Math.sin(a) * tempo * dt, 300, H - 240);
+
+            // in der Ecke: an der Spielerin vorbei auf die andere Seite
+            const eckig = (home.x <= 240 || home.x >= W-240) && (home.y <= 320 || home.y >= H-260);
+            if (eckig){
+              home.x = W - home.x;
+              home.y = Phaser.Math.Clamp(H - home.y, 300, H - 240);
+            }
+            b.setAngle(Math.sin(t*18) * 5);      // zappelt, damit es nach Absicht aussieht
+
+            if (d < 210){
+              this.fluchtVersuche = (this.fluchtVersuche || 0) + dt;
+              if (this.fluchtVersuche > 1.6 && !this.fluchtHinweis){
+                this.fluchtHinweis = true;
+                showNote(this, this.note, "„Nein“ steht leider nicht zur Auswahl.", { ms: 1800 });
+              }
+            }
+          } else {
+            b.setAngle(0);
+          }
+        }
+
         b.x = home.x + Math.sin(t*0.8 + ph) * 26;
         b.y = home.y + Math.cos(t*0.6 + ph) * 20;
       }
@@ -515,6 +593,7 @@ Hast Du alle, geht es weiter.`;
     } else if (this.blasen && this.blasen.length && performance.now() >= (this.blasenAb || 0)){
       for (const b of this.blasen.slice()){
         if (!b.active) continue;
+        if (b.getData("flieht")) continue;      // die lässt sich nicht fangen
         const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y);
         if (d < b.getData("r") * 0.78){ this.blaseGetroffen(b); break; }
       }
@@ -529,8 +608,8 @@ Hast Du alle, geht es weiter.`;
     this.player.setVelocity(0,0);
     markLevelDone("LevelMemory");
     const nx = nextLevel("LevelMemory");
-    this.showEndPanel("Alle Erinnerungen gesammelt! 💙",
-      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "");
+    this.showEndPanel("Alle Erinnerungen gesammelt!",
+      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "", nx);
   }
 
   fail(msg){
@@ -538,30 +617,16 @@ Hast Du alle, geht es weiter.`;
     this.gameOver = true;
     this.physics.world.pause();
     this.player.setVelocity(0,0);
-    this.showEndPanel(msg || "Game Over", "");
+    this.showEndPanel(msg || "Geschafft ist anders …", "Im Menü kannst Du es nochmal versuchen.");
   }
 
-  showEndPanel(title, subtitle){
-    this.add.rectangle(W/2,H/2,W,H,0x000000,0.6).setScrollFactor(0).setDepth(20000);
-    this.add.rectangle(W/2,H/2,760,320,0x071a2b,0.97)
-      .setStrokeStyle(3, 0xaad4ff, 0.8).setScrollFactor(0).setDepth(20001);
-    this.add.text(W/2, H/2-96, title, {
-      fontFamily:SERIF, fontSize:"38px", color:"#e6f0ff", fontStyle:"italic"
-    }).setOrigin(0.5).setDepth(20002);
-    if (subtitle){
-      this.add.text(W/2, H/2-44, subtitle, {
-        fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff"
-      }).setOrigin(0.5).setDepth(20002);
-    }
-    const btn = (txt, y, cb)=>{
-      const r = this.add.rectangle(W/2, y, 300, 62, 0x0d2e46, 1)
-        .setStrokeStyle(2, 0xaad4ff, 0.7).setDepth(20002).setInteractive({useHandCursor:true});
-      this.add.text(W/2, y, txt, {
-        fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#cfe9ff"
-      }).setOrigin(0.5).setDepth(20003);
-      r.on("pointerdown", cb);
-    };
-    btn("Weiter",  H/2+30,  ()=> this.scene.start("MenuScene"));
-    btn("Nochmal", H/2+108, ()=> this.scene.restart());
+  showEndPanel(title, subtitle, next){
+    makeEndPanel(this, {
+      titel: title,
+      untertitel: subtitle,
+      next: next || null,
+      nextLabel: next ? levelTitle(next) : ""
+    });
   }
+
 }

@@ -2,7 +2,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
-import { makeLetter, makeNote, showNote, zeigeVideo as spieleVideo } from "./ui.js";
+import { makeLetter, makeNote, showNote, makeEndPanel } from "./ui.js";
 
 const DEBUG = false;
 
@@ -441,61 +441,29 @@ makeOxygenBar(){
     if (this.textures.exists("diver")) this.player.play("diver_idle");
     markLevelDone("Level1");                     // schaltet das nächste Level frei
     const nx = nextLevel("Level1");
-    this.showEndPanel("Level geschafft! 🎉",
-      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "", true);
+    this.showEndPanel("Level geschafft!",
+      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "", nx);
   }
   fail(msg){
     if (this.gameOver) return;
     this.gameOver = true;
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
-    this.showEndPanel(msg || "Game Over");
+    this.showEndPanel(msg || "Geschafft ist anders …", "Im Menü kannst Du es nochmal versuchen.");
   }
-  showEndPanel(title, subtitle, mitErinnerung){
-    const W=this.scale.width,H=this.scale.height;
-    // HUD aus dem Weg, damit Panel und Video frei stehen
+  showEndPanel(title, subtitle, next){
+    // HUD und Bedienung aus dem Weg
     if (this.uiCoins) this.uiCoins.setVisible(false);
     if (this.oxyBar){
       Object.values(this.oxyBar).forEach(o => o && o.setVisible && o.setVisible(false));
     }
-    const hoch = mitErinnerung ? 400 : 320;
-    const dim = this.add.rectangle(W/2,H/2,W, H, 0x000000, 0.55).setScrollFactor(0).setDepth(100);
-    const panel = this.add.rectangle(W/2,H/2, 720, hoch, 0x071a2b, 0.95).setScrollFactor(0).setDepth(101);
-    const teile = [dim, panel];
-    const kopf = mitErinnerung ? -140 : -100;
-    teile.push(this.add.text(W/2, H/2+kopf, title, {
-      fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff"
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
-    if (subtitle){
-      teile.push(this.add.text(W/2, H/2+kopf+46, subtitle, {
-        fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff"
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
-    }
-    const makeBtn = (txt, y, onClick, bleibt)=>{
-      const r=this.add.rectangle(W/2, y, 460, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(102).setInteractive({ useHandCursor:true });
-      const t=this.add.text(W/2, y, txt, { fontFamily:"system-ui", fontSize:"22px", color:"#cfe9ff"}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
-      r.on("pointerover", ()=>r.setFillStyle(0x134062,1));
-      r.on("pointerout",  ()=>r.setFillStyle(0x0d2e46,1));
-      teile.push(r, t);
-      r.on("pointerdown", ()=>{
-        if (bleibt){ onClick(); return; }              // Panel bleibt stehen
-        onClick();
-        teile.forEach(o => o.destroy());
-      });
-      return r;
-    };
-
-    let y = H/2 + (mitErinnerung ? -30 : 10);
-    if (mitErinnerung){
-      makeBtn("▶  Erinnerung ansehen", y, ()=>{
-        teile.forEach(o => o.setVisible(false));
-        spieleVideo(this, ["assets/video/lisa_ruft.mp4", "assets/video/lisa_ruft.webm"],
-                    ()=> teile.forEach(o => o.setVisible(true)));
-      }, true);
-      y += 72;
-    }
-    makeBtn("Nochmal", y, ()=> this.scene.restart());
-    makeBtn("Zum Menü", y + 72, ()=> this.scene.start("MenuScene"));
+    makeEndPanel(this, {
+      titel: title,
+      untertitel: subtitle,
+      video: next ? ["assets/video/lisa_ruft.mp4", "assets/video/lisa_ruft.webm"] : null,
+      next: next || null,
+      nextLabel: next ? levelTitle(next) : ""
+    });
   }
 
   // ---- Helpers ----

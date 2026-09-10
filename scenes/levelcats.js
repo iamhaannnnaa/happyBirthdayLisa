@@ -7,7 +7,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
-import { makeLetter, makeNote, showNote, zeigeVideo as spieleVideo, SERIF } from "./ui.js";
+import { makeLetter, makeNote, showNote, makeEndPanel, SERIF } from "./ui.js";
 
 // Die Welt ist größer als der Bildschirm – die Kamera fährt mit.
 const WW = 3400, WH = 1900;
@@ -303,16 +303,14 @@ Maske, Flossen und Lampe – alle drei.
 
 Zwei davon tragen die Katzen mit sich herum, quer durch die
 Wohnung und bis in den Garten. Läufst Du auf sie zu, rennen
-sie weg. Leg ihnen Futter hin und schnapp sie Dir beim Fressen.
-
-Du hast noch kein Futter dabei: Der Sack steht im Zimmer
-ganz unten rechts. Da kannst Du Dir immer wieder welches holen.
+sie weg – Du wirst sie so nie erwischen. Dir fällt schon
+etwas ein.
 
 Das dritte Teil liegt irgendwo im Haus oder im Garten. Stell
 Dich davor und drück den Knopf, um nachzusehen.`;
 
     this.intro = makeLetter(this, {
-      body: brief, height: 600,
+      body: brief, height: 560,
       footer: touchEnabled()
         ? "Joystick rechts bewegt Dich · 🐟 links = Futter / Nachsehen"
         : "Pfeiltasten oder [WASD] bewegen · [Leertaste] Futter / Nachsehen",
@@ -378,7 +376,7 @@ Dich davor und drück den Knopf, um nachzusehen.`;
     this.suchVersuche++;
     showNote(this, this.note, m.leer || "Nichts.", { ms: 1300 });
 
-    if (!this.hinweisGegeben && this.suchVersuche >= 5 && !this.gefunden[this.versteckTeil.id]){
+    if (!this.hinweisGegeben && this.suchVersuche >= 9 && !this.gefunden[this.versteckTeil.id]){
       this.hinweisGegeben = true;
       setTimeout(()=>{
         if (!this.scene || !this.scene.isActive()) return;
@@ -589,61 +587,13 @@ Dich davor und drück den Knopf, um nachzusehen.`;
     if (this.futterTxt) this.futterTxt.setVisible(false);
     if (this.aktionHint) this.aktionHint.setVisible(false);
     const nx = nextLevel("LevelCats");
-    this.showEndPanel("Ausrüstung komplett! 🤿",
-      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "");
-  }
-
-  showEndPanel(title, subtitle){
-    const Wd = this.scale.width, Hd = this.scale.height;
-    const lay = this.add.container(Wd/2, Hd/2).setScrollFactor(0).setDepth(20000);
-    lay.add(this.add.rectangle(0,0,Wd*2,Hd*2,0x000000,0.62));
-    lay.add(this.add.rectangle(0,0,820,380,0x1b1209,0.97).setStrokeStyle(3, 0xd8c9a8, 0.8));
-    lay.add(this.add.text(0, -128, title, {
-      fontFamily:SERIF, fontSize:"38px", color:"#f4e7cd", fontStyle:"italic"
-    }).setOrigin(0.5));
-    if (subtitle){
-      lay.add(this.add.text(0, -76, subtitle, {
-        fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#d3bd97"
-      }).setOrigin(0.5));
-    }
-    // Wichtig: setScrollFactor(0) auch auf den Knöpfen selbst. Die Kamera
-    // fährt in diesem Level mit – ohne das rechnet Phaser die Trefferfläche
-    // mit dem Kamera-Versatz um und die Knöpfe reagieren nicht mehr.
-    const knoepfe = [];
-    const btn = (txt, y, cb)=>{
-      const r = this.add.rectangle(0, y, 420, 62, 0x3a2a18, 1)
-        .setStrokeStyle(2, 0xd8c9a8, 0.7)
-        .setScrollFactor(0)
-        .setInteractive({useHandCursor:true});
-      const t = this.add.text(0, y, txt, {
-        fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#f4e7cd"
-      }).setOrigin(0.5).setScrollFactor(0);
-      r.on("pointerdown", cb);
-      lay.add([r, t]);
-      knoepfe.push({ y, cb });
-      return r;
-    };
-    btn("▶  Kleine Erinnerung ansehen", -8, ()=> { lay.setVisible(false); this.zeigeVideo(()=> lay.setVisible(true)); });
-    btn("Weiter",  70,  ()=> this.scene.start("MenuScene"));
-    btn("Nochmal", 146, ()=> this.scene.restart());
-
-    // Sicherheitsnetz: Tipp auf Bildschirmhöhe auswerten, falls eine
-    // Trefferfläche doch mal danebenliegt.
-    this.input.on("pointerdown", (p)=>{
-      if (!lay.active || !lay.visible) return;
-      if (Math.abs(p.x - Wd/2) > 230) return;
-      const rel = p.y - Hd/2;
-      for (const k of knoepfe){
-        if (Math.abs(rel - k.y) <= 34){ k.cb(); return; }
-      }
+    makeEndPanel(this, {
+      titel: "Ausrüstung komplett!",
+      untertitel: nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "",
+      video: ["assets/video/erinnerung.mp4", "assets/video/erinnerung.webm"],
+      next: nx || null,
+      nextLabel: nx ? levelTitle(nx) : ""
     });
-
-    this.endPanel = lay;
   }
 
-  // ---------- Video ----------
-  zeigeVideo(onClose){
-    this.video = null;
-    spieleVideo(this, ["assets/video/erinnerung.mp4", "assets/video/erinnerung.webm"], onClose);
-  }
 }
