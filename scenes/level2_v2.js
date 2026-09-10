@@ -1,7 +1,7 @@
 // scenes/level2.js
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
-import { markLevelDone } from "../progress.js";
+import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
 import { makeNote, showNote } from "./ui.js";
 
 const DEBUG = false;
@@ -87,10 +87,10 @@ export default class Level2 extends Phaser.Scene {
       "#M....#....###.##...###.####",
       "#####..##.........#...#....#",
       "#...######.######.#.#.######",
-      "#.##......F.....#.#.#......#",   // Papa: naeher am Weg, damit der Sauerstoff reicht
+      "#.##............#.#.#......#",
       "#......#.#.##.#.#.#...##.#E#",
       "######.#...##.#.#.####.#.#.#",
-      "#......#.#....#.#......###X#",
+      "#......#.#....#F#......###X#",   // Papa: unten in der Sackgasse versteckt
       "############################"
     ];
 
@@ -239,7 +239,7 @@ export default class Level2 extends Phaser.Scene {
     this.haveDadKey = false; // Tür E
     this.gameOver   = false;
 
-    this.oxygenMax  = 75;   // Weg zu Mama, Papa und Ausgang dauert ~35 s
+    this.oxygenMax  = 95;   // Weg zu Mama, Papa und Ausgang dauert ~45 s – Rest zum Suchen
     this.oxygen     = this.oxygenMax;
 
     // --- Stimmung: Lichtschleier + Schwebeteilchen ---
@@ -505,8 +505,10 @@ export default class Level2 extends Phaser.Scene {
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
     if (this.textures.exists("diver")) this.player.play("diver_idle");
-    markLevelDone("Level2");                     // schaltet Level 3 frei
-    this.showEndPanel("Level geschafft! 🎉", "Level 3 ist jetzt freigeschaltet.");
+    markLevelDone("Level2");                     // schaltet das nächste Level frei
+    const nx = nextLevel("Level2");
+    this.showEndPanel("Level geschafft! 🎉",
+      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "");
   }
 
   fail(msg){

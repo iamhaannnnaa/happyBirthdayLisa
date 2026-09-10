@@ -980,15 +980,19 @@ und wenn es voll ist, wartet Deine Überraschung.`;
       lampGroup.add(lamp);
     }
 
-    const lampTitle = this.add.text(0, -H*0.40, "Alles Gute, Lisa!", {
+    const lampTitle = this.add.text(0, -H*0.40, "Alles Gute zum Geburtstag!", {
       fontFamily: SERIF, fontSize: "46px", color: "#ffe9c2", fontStyle: "italic",
       stroke: "#2a1608", strokeThickness: 6
     }).setOrigin(0.5);
-    const lampSub = this.add.text(0, H*0.365, "Eine Lampe – von Hand gedruckt, nur für Dich.", {
-      fontFamily: SERIF, fontSize: "24px", color: "#f0dcb8",
+    const lampSub = this.add.text(0, H*0.345, "Hab Dich lieb, Schwesterherz", {
+      fontFamily: SERIF, fontSize: "30px", color: "#f6e2bd", fontStyle: "italic",
+      stroke: "#2a1608", strokeThickness: 5
+    }).setOrigin(0.5);
+    const lampSub2 = this.add.text(0, H*0.415, "Eine Lampe – von Hand gedruckt, nur für Dich.", {
+      fontFamily: SERIF, fontSize: "22px", color: "#e2caa2",
       stroke: "#2a1608", strokeThickness: 4
     }).setOrigin(0.5);
-    lampGroup.add([lampTitle, lampSub]);
+    lampGroup.add([lampTitle, lampSub, lampSub2]);
     lay.add(lampGroup);
 
     this.rewardLayer = lay;
@@ -1021,15 +1025,15 @@ und wenn es voll ist, wartet Deine Überraschung.`;
       });
     };
 
-    // 5 Sekunden Gag – unabhängig von Phasers Uhr, damit es sicher weitergeht
+    // 3 Sekunden Gag – unabhängig von Phasers Uhr, damit es sicher weitergeht
     const startedAt = performance.now();
     const warten = () => {
-      if (performance.now() - startedAt >= 5000) zumGeschenk();
+      if (performance.now() - startedAt >= 3000) zumGeschenk();
       else this.time.delayedCall(200, warten);
     };
     this.time.delayedCall(200, warten);
     // Notbremse, falls die Szenen-Uhr klemmt
-    setTimeout(zumGeschenk, 5200);
+    setTimeout(zumGeschenk, 3200);
   }
 
   closeReward(){

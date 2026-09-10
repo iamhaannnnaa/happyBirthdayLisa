@@ -1,6 +1,6 @@
 const Phaser = window.Phaser;
 import { touchEnabled } from "./touch.js";
-import { isUnlocked, isLevelDone, doneCount, ORDER, resetProgress } from "../progress.js";
+import { isUnlocked, isLevelDone, doneCount, ORDER, LABELS, resetProgress } from "../progress.js";
 
 export default class MenuScene extends Phaser.Scene {
   constructor(){ super("MenuScene"); }
@@ -25,7 +25,7 @@ export default class MenuScene extends Phaser.Scene {
 
     // ---- Level-Button: gesperrt, offen oder geschafft ----
     const makeLevelButton = (y, id, label, needsLabel) => {
-      const bw = 620, bh = 86;
+      const bw = 720, bh = 74;
       const open = isUnlocked(id);
       const finished = isLevelDone(id);
 
@@ -36,7 +36,7 @@ export default class MenuScene extends Phaser.Scene {
 
       const text = (open ? "" : "🔒  ") + label + (finished ? "   ✓" : "");
       this.add.text(W/2, y, text, {
-        fontFamily:"system-ui, sans-serif", fontSize:"34px",
+        fontFamily:"system-ui, sans-serif", fontSize:"30px",
         color: open ? "#e6f0ff" : "#7d8f9b"
       }).setOrigin(0.5);
 
@@ -50,27 +50,33 @@ export default class MenuScene extends Phaser.Scene {
       return open;
     };
 
-    makeLevelButton(H*0.38, "Level1", "Level 1 – Limes-Ruine", "Level 1");
-    makeLevelButton(H*0.50, "Level2", "Level 2 – Limes-Thermen-Oase", "Level 1");
-    makeLevelButton(H*0.62, "Level3", "Level 3 – Reichstädter Tage", "Level 2");
+    // Alle Level aus der Reihenfolge – so muss hier nichts nachgetragen
+    // werden, wenn ein Level dazukommt.
+    const TOP = H*0.32, STEP = H*0.115;
+    ORDER.forEach((id, i)=>{
+      const vorher = i > 0 ? `Level ${i}` : "";
+      makeLevelButton(TOP + i*STEP, id, `Level ${i+1} – ${LABELS[id] || id}`, vorher);
+    });
 
     // Tastatur-Kürzel (respektieren die Sperre)
     const startIfOpen = (id, needs) => {
       if (isUnlocked(id)) this.scene.start(id);
       else this.showToast(`Schaff erst ${needs}.`);
     };
-    this.input.keyboard.on("keydown-ONE",   ()=> startIfOpen("Level1", "Level 1"));
-    this.input.keyboard.on("keydown-TWO",   ()=> startIfOpen("Level2", "Level 1"));
-    this.input.keyboard.on("keydown-THREE", ()=> startIfOpen("Level3", "Level 2"));
+    ["ONE","TWO","THREE","FOUR","FIVE"].forEach((taste, i)=>{
+      const id = ORDER[i];
+      if (!id) return;
+      this.input.keyboard.on("keydown-"+taste, ()=> startIfOpen(id, `Level ${i}`));
+    });
 
     // Hinweis auf das Geschenk
     if (done >= ORDER.length){
-      this.add.text(W/2, H*0.72, "🎁 Alle Level geschafft – dein Geschenk wartet!", {
-        fontFamily:"system-ui, sans-serif", fontSize:"28px", color:"#ffe062"
+      this.add.text(W/2, H*0.905, "🎁 Alle Level geschafft – dein Geschenk wartet!", {
+        fontFamily:"system-ui, sans-serif", fontSize:"26px", color:"#ffe062"
       }).setOrigin(0.5);
     } else {
-      this.add.text(W/2, H*0.72, "Spiel alle drei Level durch, um dein Geschenk zu sehen.", {
-        fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#7fa8c8"
+      this.add.text(W/2, H*0.905, "Spiel alle Level durch, um dein Geschenk zu sehen.", {
+        fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#7fa8c8"
       }).setOrigin(0.5).setAlpha(0.9);
     }
 

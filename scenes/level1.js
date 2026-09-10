@@ -1,7 +1,7 @@
 // scenes/level1.js
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
-import { markLevelDone } from "../progress.js";
+import { markLevelDone, levelTitle, nextLevel } from "../progress.js";
 import { makeLetter } from "./ui.js";
 
 const DEBUG = false;
@@ -420,8 +420,10 @@ makeOxygenBar(){
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
     if (this.textures.exists("diver")) this.player.play("diver_idle");
-    markLevelDone("Level1");                     // schaltet Level 2 frei
-    this.showEndPanel("Level geschafft! 🎉", "Level 2 ist jetzt freigeschaltet.");
+    markLevelDone("Level1");                     // schaltet das nächste Level frei
+    const nx = nextLevel("Level1");
+    this.showEndPanel("Level geschafft! 🎉",
+      nx ? `${levelTitle(nx)} ist jetzt freigeschaltet.` : "");
   }
   fail(msg){
     if (this.gameOver) return;
