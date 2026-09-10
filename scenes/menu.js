@@ -90,12 +90,18 @@ export default class MenuScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("SplashScene"));
 
     // Spielstand zurücksetzen (eigenes Fenster statt Browser-Dialog)
-    const reset = this.add.text(W - 24, H - 24, "Spielstand zurücksetzen", {
+    const resetTxt = this.add.text(W - 44, H - 46, "Spielstand zurücksetzen", {
       fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#8fa6b4"
-    }).setOrigin(1, 1).setInteractive({ useHandCursor: true });
-    reset.on("pointerover", ()=> reset.setColor("#e6f0ff"));
-    reset.on("pointerout",  ()=> reset.setColor("#8fa6b4"));
-    reset.on("pointerdown", ()=> this.askReset());
+    }).setOrigin(1, 1);
+    // Deutlich größere Trefferfläche als der Text selbst – der war zu schmal
+    // zum Antippen, und ganz in der Ecke trifft man auf dem Handy schlecht.
+    const resetHit = this.add.rectangle(
+      resetTxt.x - resetTxt.width/2, resetTxt.y - resetTxt.height/2,
+      resetTxt.width + 150, resetTxt.height + 90, 0x000000, 0
+    ).setInteractive({ useHandCursor: true });
+    resetHit.on("pointerover", ()=> resetTxt.setColor("#e6f0ff"));
+    resetHit.on("pointerout",  ()=> resetTxt.setColor("#8fa6b4"));
+    resetHit.on("pointerdown", ()=> this.askReset());
   }
 
   // ---- Eigenes Bestätigungsfenster ----

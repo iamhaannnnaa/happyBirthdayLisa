@@ -32,10 +32,25 @@
     </div>
   </div>
 
-  <!-- Nur auf iPhone/iPad: Safari kann kein Vollbild, dafür gibt es die App-Ansicht -->
-  <div id="ios-hint" hidden>
-    <span class="ios-hint-text">Ohne Browserleiste: <b>Teilen-Menü</b> → <b>Zum Home-Bildschirm</b></span>
-    <button id="ios-hint-close" type="button" aria-label="Hinweis schließen">✕</button>
+  <!-- Erklärung, wenn der Browser kein Vollbild kann (iPhone/iPad-Safari) -->
+  <div id="fs-help" hidden>
+    <div class="fs-help-box" role="dialog" aria-labelledby="fs-help-title">
+      <h2 id="fs-help-title">Vollbild auf dem iPhone</h2>
+      <p>Safari lässt Webseiten kein echtes Vollbild zu – dieser Knopf funktioniert
+         nur in Chrome und am Computer. Ohne Browserleiste geht es trotzdem:</p>
+      <ol>
+        <li>Unten in Safari auf das <b>Teilen-Symbol</b> tippen:
+          <svg class="fs-share" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3l4 4h-3v9h-2V7H8l4-4z"/>
+            <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7h-2v7H7v-7H5z"/>
+          </svg>
+        </li>
+        <li>In der Liste <b>„Zum Home-Bildschirm"</b> wählen und bestätigen.</li>
+        <li>Das Spiel künftig über das neue Symbol auf dem Home-Bildschirm starten –
+            dann ist die Leiste weg und das Bild größer.</li>
+      </ol>
+      <button id="fs-help-close" type="button">Verstanden</button>
+    </div>
   </div>
 
   <!-- Phaser als Global – liegt jetzt im Projekt, damit das Spiel auch

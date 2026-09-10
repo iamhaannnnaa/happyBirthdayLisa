@@ -2,6 +2,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone } from "../progress.js";
+import { makeNote, showNote } from "./ui.js";
 
 const L3_VERSION = "L3-openworld-2025-09-12-f"; // + Foto-Overlay & robustes Shooting
 
@@ -200,9 +201,8 @@ export default class Level3 extends Phaser.Scene {
     this.uiRoot.add(this.hud);
     this.updateHud();
 
-    // --- Capture-Meldung oben mittig ---
-    this.capturePanel = this.makeCapturePanel();
-    this.uiRoot.add(this.capturePanel);
+    // --- Meldungen als Pergament-Notiz (gleiche Optik wie Brief & Logbuch) ---
+    this.note = makeNote(this, { width: 700 });
 
     // Das Logbuch-Symbol liegt in der Bedien-Ebene (TouchScene) –
     // dort stimmen Klickfläche und Symbol überein.
@@ -215,8 +215,6 @@ export default class Level3 extends Phaser.Scene {
     // Resize
     this.scale.on("resize", () => this.repositionUI());
 
-    // --- Foto-Overlay (zentral, garantiert sichtbar) ---
-    this.photoOverlay = this.makePhotoOverlay();
 
     const introAlreadySeen = localStorage.getItem(this.introKey) === "1";
     if (!introAlreadySeen) {
@@ -365,7 +363,7 @@ export default class Level3 extends Phaser.Scene {
     }
 
     if (inFrame.length === 0){
-      this.showPhotoOverlay(["Kein Hai im Bild"]);
+      this.showPhotoOverlay(["Kein Hai im Bild."]);
       return;
     }
 
@@ -373,16 +371,20 @@ export default class Level3 extends Phaser.Scene {
     const seen = new Set();
     const newCaught = [];
     const already   = [];
+    let iconKey = null;                 // Bild für die Meldung
     for (const s of inFrame){
       const id = s.getData("id");
       if (seen.has(id)) continue;
       seen.add(id);
       const name = s.getData("name");
+      const tex  = s.texture && s.texture.key;
       if (!this.dex.caught[id]) {
         this.dex.caught[id] = true;
         newCaught.push(name);
+        if (!iconKey || newCaught.length === 1) iconKey = tex;
       } else {
         already.push(name);
+        if (!iconKey) iconKey = tex;
       }
     }
 
@@ -394,14 +396,14 @@ export default class Level3 extends Phaser.Scene {
       if (this.bookOpen) this.refreshBook();
     }
 
-    // Meldungen im Overlay
+    // Meldung als Pergament-Notiz
     const msgs = [];
-    for (const n of newCaught) msgs.push(`Neu fotografiert: ${n}`);
+    for (const n of newCaught) msgs.push(`Neu im Logbuch: ${n}`);
     if (newCaught.length === 0){
-      for (const n of already) msgs.push(`Schon fotografiert: ${n}`);
-      if (already.length === 0) msgs.push("Kein Hai im Bild");
+      for (const n of already) msgs.push(`${n} — den hast du schon.`);
+      if (already.length === 0){ msgs.push("Kein Hai im Bild."); iconKey = null; }
     }
-    this.showPhotoOverlay(msgs);
+    this.showPhotoOverlay(msgs, iconKey);
 
     // >>> NEU: prüfen, ob jetzt alles komplett ist
     this.checkCompletionOnce();
@@ -415,35 +417,9 @@ export default class Level3 extends Phaser.Scene {
     this.hud.setText(`Haie: ${have} / ${total}${hint}`);
   }
 
-  makeCapturePanel(){
-    // oben mittig, damit sie unter keinem Bedienelement liegt
-    const p = this.ui(this.scale.width/2 - 190, 22);
-    const panel = this.add.container(p.x, p.y);
-    const bg = this.add.rectangle(0, 0, 380, 54, 0x0d2e46, 0.95).setOrigin(0,0)
-      .setStrokeStyle(2, 0x79d0ff, 0.5);
-    const text = this.add.text(190, 27, "", {
-      fontFamily:"system-ui, sans-serif", fontSize:"19px", color:"#cfe9ff",
-      stroke:"#000", strokeThickness:3, align:"center",
-      wordWrap: { width: 356 }
-    }).setOrigin(0.5);
-    panel.add([bg, text]);
-    panel.setAlpha(0);
-    panel._text = text;
-    return panel;
-  }
 
-  showCapture(name){
-    const p = this.capturePanel;
-    p._text.setText(`Neu fotografiert:\n${name}`);
-    this.tweens.killTweensOf(p);
-    p.setAlpha(0).y = 16;
-    this.tweens.add({
-      targets: p, alpha: 1, y: 16, duration: 120, ease: "Quad.easeOut",
-      onComplete: () => {
-        this.tweens.add({ targets: p, alpha: 0, y: 0, delay: 1400, duration: 220, ease: "Quad.easeIn" });
-      }
-    });
-  }
+
+
 
   // Hinweis am Logbuch-Symbol, wenn eine neue Art dazukommt
   pulseBookButton(){
@@ -588,15 +564,6 @@ export default class Level3 extends Phaser.Scene {
     // nur die mittigen Overlays nachgeführt werden.
     if (this.uiRoot) this.uiRoot.setPosition(this.scale.width/2, this.scale.height/2);
     if (this.bookLayer) this.bookLayer.setPosition(this.scale.width/2, this.scale.height/2);
-
-    // Foto-Overlay
-    if (this.photoOverlay){
-      this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
-      if (this.photoOverlay._dim){
-        this.photoOverlay._dim.width  = this.scale.width*2;
-        this.photoOverlay._dim.height = this.scale.height*2;
-      }
-    }
 
     // Intro-Overlay (falls offen)
     if (this.introOverlay){
@@ -773,37 +740,7 @@ export default class Level3 extends Phaser.Scene {
   }
 
   // ===== Zentrales Foto-Overlay (dim + Panel) =====
-  makePhotoOverlay(){
-    const W = this.scale.width, H = this.scale.height;
-    const cont = this.add.container(W/2, H/2)
-      .setScrollFactor(0)
-      .setDepth(20000) // ganz oben
-      .setAlpha(0)
-      .setVisible(false)
-      .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
 
-    // Dimmer
-    const dim = this.add.rectangle(0, 0, W*2, H*2, 0x000000, 0.5).setOrigin(0.5);
-    // Panel
-    const panelW = Math.min(560, W*0.9);
-    const panelH = 140;
-    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
-    panel.setStrokeStyle(3, 0xaad4ff, 1);
-
-    const txt = this.add.text(0, 0, "", {
-      fontFamily:"system-ui, sans-serif",
-      fontSize:"20px",
-      color:"#103a5c",
-      align:"center",
-      wordWrap: { width: panelW - 48 }
-    }).setOrigin(0.5);
-
-    cont.add([dim, panel, txt]);
-    cont._dim = dim;
-    cont._panel = panel;
-    cont._text = txt;
-    return cont;
-  }
 
   makeIntroOverlay(){
     const W = this.scale.width, H = this.scale.height;
@@ -870,40 +807,10 @@ und wenn es voll ist, wartet Deine Überraschung.`;
     return cont;
   }
 
-  showPhotoOverlay(lines){
-    const cont = this.photoOverlay;
-    if (!cont) return;
-
-    // Text aufbereiten
-    const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
-    cont._text.setText(msg);
-
-    // Panelhöhe dynamisch (mehrere Zeilen → größer)
-    const baseH = 120;
-    const extra = Math.max(0, cont._text.height - 60);
-    cont._panel.height = baseH + extra;
-
-    // Dim auf aktuelle Fenstergröße bringen
-    cont._dim.width  = this.scale.width;
-    cont._dim.height = this.scale.height;
-
-    cont.setPosition(this.scale.width/2, this.scale.height/2);
-    cont.setVisible(true);
-    cont.setAlpha(0);
-
-    // Einblenden, kurz halten, ausblenden
-    this.tweens.add({
-      targets: cont, alpha: 1, duration: 120, ease: "Quad.easeOut",
-      onComplete: () => {
-        this.time.delayedCall(1100, () => {
-          this.tweens.add({
-            targets: cont, alpha: 0, duration: 220, ease: "Quad.easeIn",
-            onComplete: () => cont.setVisible(false)
-          });
-        });
-      }
-    });
+  showPhotoOverlay(lines, icon){
+    showNote(this, this.note, lines, { icon: icon || null, ms: 1500 });
   }
+
 
   // ======= NEU: Spielabschluss + Geschenk =======
   checkCompletionOnce(){

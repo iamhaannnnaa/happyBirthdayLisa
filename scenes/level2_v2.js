@@ -2,6 +2,7 @@
 const Phaser = window.Phaser;
 import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone } from "../progress.js";
+import { makeNote, showNote } from "./ui.js";
 
 const DEBUG = false;
 
@@ -263,8 +264,8 @@ export default class Level2 extends Phaser.Scene {
       stroke:"#000", strokeThickness:3
     }).setOrigin(0,1).setScrollFactor(0).setDepth(10000).setVisible(!touchEnabled());
 
-    // === NEU: Key-Overlay (Foto-Overlay-Stil aus L3) ===
-    this.keyOverlay = this.makeKeyOverlay();
+    // === Meldungen als kleine Pergament-Notiz (gleiche Optik wie der Brief) ===
+    this.note = makeNote(this, { width: 660 });
 
     // === NEU: Intro-Overlay (einmalig) ===
     this.introOverlay = this.makeIntroOverlay();
@@ -274,22 +275,6 @@ export default class Level2 extends Phaser.Scene {
     this.scale.on("resize", ()=>{
       this.repositionUIFrame();
       escTxt.setPosition(16, this.scale.height-10);
-
-      // Key-Overlay anpassen
-      if (this.keyOverlay){
-        this.keyOverlay.setPosition(this.scale.width/2, this.scale.height/2);
-        if (this.keyOverlay._dim){
-          this.keyOverlay._dim.width  = this.scale.width;
-          this.keyOverlay._dim.height = this.scale.height;
-        }
-        if (this.keyOverlay._panel){
-          const panelW = Math.min(560, this.scale.width*0.9);
-          this.keyOverlay._panel.width = panelW;
-          if (this.keyOverlay._text){
-            this.keyOverlay._text.setWordWrapWidth(panelW - 48, true);
-          }
-        }
-      }
 
       // Brief-Overlay anpassen (fester Aufbau, nur Position + Abdunklung)
       if (this.introOverlay){
@@ -360,8 +345,8 @@ export default class Level2 extends Phaser.Scene {
       this.openDoor("door1"); // Tür D
 
       // kleine HUD-Info + Overlay im L3-Stil
-      this.showInfo("Mama: Schlüssel erhalten → Tür D öffnet sich!");
-      this.showKeyOverlay(["Schlüssel erhalten: die goldene Tür öffnet sich!"]);
+      this.showKeyOverlay(["Mama gibt dir den goldenen Schlüssel.",
+                           "Die goldene Tür ist offen!"], "key_gold");
       this.lightUpKey("keyMom");
 
       this.updateUI();
@@ -373,8 +358,8 @@ export default class Level2 extends Phaser.Scene {
       npc.setData("gaveKey", true);
       this.openDoor("door2"); // Tür E
 
-      this.showInfo("Papa: Schlüssel erhalten → Tür E öffnet sich!");
-      this.showKeyOverlay(["Schlüssel erhalten: die rote Tür öffnet sich!"]);
+      this.showKeyOverlay(["Papa gibt dir den roten Schlüssel.",
+                           "Die rote Tür ist offen!"], "key_silver");
       this.lightUpKey("keyDad");
 
       this.updateUI();
@@ -509,16 +494,9 @@ export default class Level2 extends Phaser.Scene {
   }
 
   showInfo(msg, holdMs = 1500){
-    if (!this.ui) return;
-    const t = this.ui._info;
-    t.setText(msg);
-    this.tweens.killTweensOf(t);
-    t.setAlpha(0);
-    this.tweens.add({
-      targets:t, alpha:1, duration:120, ease:"Quad.easeOut",
-      onComplete: ()=> this.tweens.add({ targets:t, alpha:0, delay:holdMs, duration:220, ease:"Quad.easeIn" })
-    });
+    showNote(this, this.note, msg, { ms: holdMs });
   }
+
 
   // ====== Enden / Panels ======
   win(){
@@ -793,71 +771,12 @@ export default class Level2 extends Phaser.Scene {
   }
 
   // ====== Key-Overlay (vom L3-Foto-Overlay abgeleitet) ======
-  makeKeyOverlay(){
-    const W = this.scale.width, H = this.scale.height;
-    const cont = this.add.container(W/2, H/2)
-      .setScrollFactor(0)
-      .setDepth(20000) // ganz oben
-      .setAlpha(0)
-      .setVisible(false);
 
-    // Dimmer
-    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0.5);
-    // Panel
-    const panelW = Math.min(560, W*0.9);
-    const panelH = 140;
-    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
-    panel.setStrokeStyle(3, 0xaad4ff, 1);
 
-    const txt = this.add.text(0, 0, "", {
-      fontFamily:"system-ui, sans-serif",
-      fontSize:"20px",
-      color:"#103a5c",
-      align:"center",
-      wordWrap: { width: panelW - 48 }
-    }).setOrigin(0.5);
-
-    cont.add([dim, panel, txt]);
-    cont._dim = dim;
-    cont._panel = panel;
-    cont._text = txt;
-    return cont;
+  showKeyOverlay(lines, icon){
+    showNote(this, this.note, lines, { icon: icon || null, ms: 1600 });
   }
 
-  showKeyOverlay(lines){
-    const cont = this.keyOverlay;
-    if (!cont) return;
-
-    // Text aufbereiten
-    const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
-    cont._text.setText(msg);
-
-    // Panelhöhe dynamisch (mehrere Zeilen → größer)
-    const baseH = 120;
-    const extra = Math.max(0, cont._text.height - 60);
-    cont._panel.height = baseH + extra;
-
-    // Dim auf aktuelle Fenstergröße bringen
-    cont._dim.width  = this.scale.width;
-    cont._dim.height = this.scale.height;
-
-    cont.setPosition(this.scale.width/2, this.scale.height/2);
-    cont.setVisible(true);
-    cont.setAlpha(0);
-
-    // Einblenden, kurz halten, ausblenden
-    this.tweens.add({
-      targets: cont, alpha: 1, duration: 120, ease: "Quad.easeOut",
-      onComplete: () => {
-        this.time.delayedCall(1100, () => {
-          this.tweens.add({
-            targets: cont, alpha: 0, duration: 220, ease: "Quad.easeIn",
-            onComplete: () => cont.setVisible(false)
-          });
-        });
-      }
-    });
-  }
 
   // ====== Intro: ein alter Brief (einmalig beim 1. Start) ======
   makeIntroOverlay(){

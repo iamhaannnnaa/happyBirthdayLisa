@@ -1,0 +1,94 @@
+// scenes/ui.js
+// Gemeinsame Meldungs-Optik: kleine Pergament-Notiz im Stil der Briefe.
+// Wird in Level 2 (Schlüssel gefunden) und Level 3 (Foto gemacht) benutzt,
+// damit alle Hinweise gleich aussehen.
+
+const Phaser = window.Phaser;
+
+export const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+export const INK   = "#3f2d1c";
+
+// Legt die Notiz an (unsichtbar). Position: oberes Drittel, damit sie
+// die Spielfigur nicht verdeckt.
+export function makeNote(scene, opts){
+  const o = Object.assign({ width: 640, depth: 20000, y: 0.26 }, opts || {});
+  const W = scene.scale.width, H = scene.scale.height;
+  const zoom = (scene.cameras && scene.cameras.main && scene.cameras.main.zoom) || 1;
+
+  // Zielhöhe auf dem Bildschirm; bei gezoomter Kamera muss die Position
+  // zurückgerechnet werden, sonst rutscht die Notiz aus dem Bild.
+  const targetY = H * o.y;
+  const posY = H/2 + (targetY - H/2) / zoom;
+
+  const cont = scene.add.container(W/2, posY)
+    .setScrollFactor(0)
+    .setDepth(o.depth)
+    .setScale(1 / zoom)          // Kamera-Zoom herausrechnen
+    .setAlpha(0)
+    .setVisible(false);
+
+  const paper = scene.textures.exists("parchment")
+    ? scene.add.image(0, 0, "parchment").setOrigin(0.5).setDisplaySize(o.width, 150)
+    : scene.add.rectangle(0, 0, o.width, 150, 0xe9dcbf, 1).setOrigin(0.5);
+  paper.setAngle(-0.8);
+
+  const icon = scene.add.image(0, 0, "__DEFAULT").setVisible(false);
+
+  const txt = scene.add.text(0, 0, "", {
+    fontFamily: SERIF, fontSize: "23px", color: INK,
+    align: "center", lineSpacing: 5,
+    wordWrap: { width: o.width - 130 }
+  }).setOrigin(0.5).setAngle(-0.8);
+
+  cont.add([paper, icon, txt]);
+  cont._paper = paper;
+  cont._icon  = icon;
+  cont._text  = txt;
+  cont._width = o.width;
+  return cont;
+}
+
+// Zeigt die Notiz. text: String oder Array von Zeilen.
+// opts: { icon: "textur-key", ms: Anzeigedauer }
+export function showNote(scene, cont, text, opts){
+  if (!cont) return;
+  const o = Object.assign({ icon: null, ms: 1400 }, opts || {});
+  const msg = Array.isArray(text) ? text.join("\n") : String(text || "");
+
+  cont._text.setText(msg);
+
+  // Bild links daneben (z. B. der fotografierte Hai)
+  const withIcon = !!(o.icon && scene.textures.exists(o.icon));
+  if (withIcon){
+    cont._icon.setTexture(o.icon).setVisible(true);
+    const src = scene.textures.get(o.icon).getSourceImage();
+    const h = 62;
+    const sc = (src && src.height) ? h / src.height : 1;
+    cont._icon.setScale(sc);
+    const iw = src ? src.width * sc : h;
+    cont._icon.setPosition(-cont._width/2 + 46 + iw/2, 0);
+    cont._text.setPosition(iw/2 + 26, 0);
+  } else {
+    cont._icon.setVisible(false);
+    cont._text.setPosition(0, 0);
+  }
+
+  // Papier an die Texthöhe anpassen
+  const needed = Math.max(130, cont._text.height + 62);
+  cont._paper.setDisplaySize(cont._width, needed);
+
+  scene.tweens.killTweensOf(cont);
+  const zoom = (scene.cameras && scene.cameras.main && scene.cameras.main.zoom) || 1;
+  const base = 1 / zoom;
+
+  cont.setVisible(true).setAlpha(0).setScale(base * 0.92);
+  scene.tweens.add({
+    targets: cont, alpha: 1, scale: base, duration: 170, ease: "Back.easeOut",
+    onComplete: () => {
+      scene.tweens.add({
+        targets: cont, alpha: 0, duration: 260, delay: o.ms, ease: "Quad.easeIn",
+        onComplete: () => cont.setVisible(false)
+      });
+    }
+  });
+}
