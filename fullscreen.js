@@ -11,6 +11,36 @@
   var release = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
   var supported = !!request;
 
+  // Läuft die Seite schon als App vom Home-Bildschirm? Dann ist die
+  // Browserleiste ohnehin weg und es gibt nichts zu tun.
+  var standalone = (window.navigator.standalone === true) ||
+                   (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+                   (window.matchMedia && window.matchMedia("(display-mode: fullscreen)").matches);
+
+  // iPhone/iPad-Safari kennt keine Vollbild-API für Seiten. Dort ist
+  // „Zum Home-Bildschirm hinzufügen" der einzige Weg ohne Browserleiste.
+  var coarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  var forceHint = false;
+  try { forceHint = (window.location.search || "").indexOf("hint=1") !== -1; } catch (e) {}
+
+  window.__bdHomescreenHint = forceHint || (!supported && coarsePointer && !standalone);
+
+  var hint = document.getElementById("ios-hint");
+  if (hint && window.__bdHomescreenHint) {
+    var dismissed = false;
+    try { dismissed = localStorage.getItem("bd_hint_home_v1") === "1"; } catch (e) {}
+    if (!dismissed) {
+      hint.hidden = false;
+      var close = document.getElementById("ios-hint-close");
+      if (close) {
+        close.addEventListener("click", function () {
+          hint.hidden = true;
+          try { localStorage.setItem("bd_hint_home_v1", "1"); } catch (e) {}
+        });
+      }
+    }
+  }
+
   function inFullscreen() {
     return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
   }

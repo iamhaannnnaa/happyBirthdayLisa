@@ -32,6 +32,12 @@
     </div>
   </div>
 
+  <!-- Nur auf iPhone/iPad: Safari kann kein Vollbild, dafür gibt es die App-Ansicht -->
+  <div id="ios-hint" hidden>
+    <span class="ios-hint-text">Ohne Browserleiste: <b>Teilen-Menü</b> → <b>Zum Home-Bildschirm</b></span>
+    <button id="ios-hint-close" type="button" aria-label="Hinweis schließen">✕</button>
+  </div>
+
   <!-- Phaser als Global – liegt jetzt im Projekt, damit das Spiel auch
        ohne Internet/CDN startet (wichtig bei schlechtem Handy-Empfang) -->
   <script src="./vendor/phaser.min.js"></script>

@@ -29,12 +29,23 @@ export function readAxis(keyX, keyY){
   return { x: keyX, y: keyY };
 }
 
-// In create() des Levels aufrufen. opts: { action:true, label:"📷" }
+// In create() des Levels aufrufen. opts: { action:true, label:"📷", book:true }
+//
+// Warum liegen die Knöpfe in einer eigenen Szene? Phaser verrechnet den
+// Kamera-Zoom beim Zeichnen anders als beim Klicken. In Level 2 (Zoom 2)
+// und Level 3 (Zoom 1.25) läge die Klickfläche deshalb woanders als das
+// sichtbare Symbol. Diese Szene hat keinen Zoom – hier stimmt beides.
 export function startTouch(scene, opts){
   TOUCH.x = 0; TOUCH.y = 0; TOUCH.active = false;
-  if (!touchEnabled()) return;
+  const o = Object.assign({ action:false, label:"FOTO", book:false }, opts || {});
+  const touch = touchEnabled();
 
-  scene.registry.set("touchOpts", Object.assign({ action:false, label:"FOTO" }, opts || {}));
+  // Ohne Touchscreen wird die Szene nur gebraucht, wenn es feste
+  // Bedienelemente (z. B. das Logbuch) gibt.
+  if (!touch && !o.book) return;
+  o.hudOnly = !touch;
+
+  scene.registry.set("touchOpts", o);
   scene.scene.launch("TouchScene");
 
   // Beim Verlassen/Neustart des Levels sauber aufräumen
@@ -50,6 +61,10 @@ export default class TouchScene extends Phaser.Scene {
   create(){
     const opts = this.registry.get("touchOpts") || { action:false, label:"FOTO" };
     const W = this.scale.width, H = this.scale.height;
+
+    // Logbuch-Knopf oben rechts (auch am Rechner sichtbar)
+    if (opts.book) this.makeBookButton(W, H);
+    if (opts.hudOnly) return;   // ohne Touchscreen keine Joystick-Bedienung
 
     TOUCH.x = 0; TOUCH.y = 0; TOUCH.active = false;
     this.stickId = null;
@@ -123,8 +138,44 @@ export default class TouchScene extends Phaser.Scene {
     this.events.once("shutdown", ()=>{ TOUCH.x = 0; TOUCH.y = 0; TOUCH.active = false; });
   }
 
+  // ---------- Logbuch-Knopf ----------
+  makeBookButton(W, H){
+    const bx = W - 104, by = 104;
+    const group = this.add.container(bx, by).setDepth(20);
+
+    const halo = this.add.circle(0, 0, 60, 0x0d2e46, 0.8).setStrokeStyle(2, 0x79d0ff, 0.7);
+    const book = this.textures.exists("book_icon")
+      ? this.add.image(0, 0, "book_icon").setDisplaySize(80, 80)
+      : this.add.text(0, 0, "📖", { fontSize: "52px" }).setOrigin(0.5);
+    const label = this.add.text(0, 64, "Logbuch", {
+      fontFamily:"system-ui, sans-serif", fontSize:"17px", color:"#cfe9ff",
+      stroke:"#000", strokeThickness:3
+    }).setOrigin(0.5);
+
+    group.add([halo, book, label]);
+    group.setInteractive(new Phaser.Geom.Circle(0, 0, 64), Phaser.Geom.Circle.Contains);
+    group.on("pointerdown", ()=>{
+      this.tweens.add({ targets: group, scale: 0.9, duration: 80, yoyo: true,
+                        onComplete: ()=> group.setScale(1) });
+      this.game.events.emit("touch-book");
+    });
+
+    this.bookBtn = group;
+    this.bookArea = { x: bx, y: by, r: 74 };
+    return group;
+  }
+
+  // von außen: kurz aufmerksam machen, wenn eine neue Art dazukommt
+  pulseBook(){
+    if (!this.bookBtn) return;
+    this.tweens.add({ targets: this.bookBtn, scale: 1.2, duration: 180,
+                      yoyo: true, repeat: 1, onComplete: ()=> this.bookBtn.setScale(1) });
+  }
+
   onDown(p){
     if (this.stickId !== null) return;                         // ein Finger reicht
+    if (this.bookArea &&
+        Phaser.Math.Distance.Between(p.x, p.y, this.bookArea.x, this.bookArea.y) <= this.bookArea.r) return;
     if (this.inActionArea(p) || this.inMenuArea(p)) return;    // Buttons haben Vorrang
     if (p.x < this.scale.width * 0.45) return;                 // linke Hälfte: keine Bewegung
 
@@ -147,9 +198,12 @@ export default class TouchScene extends Phaser.Scene {
     this.thumb.setPosition(this.baseX + nx * Math.min(len, this.maxR),
                            this.baseY + ny * Math.min(len, this.maxR));
 
-    const dead = 14;
+    const dead = 16;
     if (len < dead){ TOUCH.x = 0; TOUCH.y = 0; TOUCH.active = false; return; }
-    const strength = Phaser.Math.Clamp((len - dead) / (this.maxR - dead), 0, 1);
+    const raw = Phaser.Math.Clamp((len - dead) / (this.maxR - dead), 0, 1);
+    // Kennlinie: kleine Daumenbewegungen wirken sanfter, volles Tempo
+    // gibt es erst am Rand. Macht die Steuerung deutlich feiner.
+    const strength = Math.pow(raw, 1.5);
     TOUCH.x = nx * strength;
     TOUCH.y = ny * strength;
     TOUCH.active = true;

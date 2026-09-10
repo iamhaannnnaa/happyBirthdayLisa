@@ -52,7 +52,7 @@ export default class Level2 extends Phaser.Scene {
     this.load.image("door1",      L2 + "door_gold.png");
     this.load.image("door2",      L2 + "door_red.png");
     this.load.image("door_open",  L2 + "door_open.png");
-    this.load.image("exit",       L2 + "exit_tile.png");
+    this.load.image("exit",       L2 + "exit_well.png");
     this.load.image("mom",        L2 + "npc_mom.png");
     this.load.image("dad",        L2 + "npc_dad.png");
     this.load.image("key_gold",   L2 + "key_gold.png");
@@ -182,9 +182,9 @@ export default class Level2 extends Phaser.Scene {
         } else if (ch === "X"){
           const ex = this.exit.create(px, py, "exit");
           ex.setDisplaySize(this.TILE, this.TILE);
+          ex.setDepth(0);
           ex.refreshBody();
-          // sanftes Pulsieren, damit der Ausgang auffällt
-          this.tweens.add({ targets: ex, alpha: 0.75, duration: 1400, yoyo: true, repeat: -1, ease: "sine.inOut" });
+          this.decorateExit(px, py);
         }
       }
     }
@@ -210,8 +210,10 @@ export default class Level2 extends Phaser.Scene {
       : this.physics.add.image(startX, startY, "player");
 
     this.player.setCollideWorldBounds(true);
-    this.player.body.setDrag(600,600);
-    this.player.body.setMaxVelocity(320,320);
+    // Im Labyrinth ruhiger als im offenen Wasser: mehr Wasserwiderstand,
+    // weniger Höchsttempo – dadurch lässt sie sich feiner steuern.
+    this.player.body.setDrag(1000, 1000);
+    this.player.body.setMaxVelocity(215, 215);
     this.updateBodySize();
     this.player.setFlipX(true);
 
@@ -617,6 +619,52 @@ export default class Level2 extends Phaser.Scene {
     const rTex = R_WORLD / scale;
 
     p.body.setCircle(rTex, frameW/2 - rTex, frameH/2 - rTex);
+  }
+
+  // ====== Ausgang: Lichtschacht nach oben statt nur ein Feld ======
+  decorateExit(px, py){
+    // pulsierender Lichtring
+    const ring = this.add.circle(px, py, this.TILE*0.42, 0xaaf0e6, 0)
+      .setStrokeStyle(3, 0xd6fbf4, 0.85).setDepth(1);
+    this.tweens.add({
+      targets: ring, scale: 1.5, alpha: 0, duration: 1900,
+      repeat: -1, ease: "sine.out",
+      onRepeat: ()=> { ring.setScale(1); ring.setAlpha(1); }
+    });
+
+    // zweiter Ring versetzt, damit es wie Wellen wirkt
+    const ring2 = this.add.circle(px, py, this.TILE*0.42, 0xaaf0e6, 0)
+      .setStrokeStyle(2, 0xd6fbf4, 0.6).setDepth(1);
+    this.tweens.add({
+      targets: ring2, scale: 1.5, alpha: 0, duration: 1900, delay: 950,
+      repeat: -1, ease: "sine.out",
+      onRepeat: ()=> { ring2.setScale(1); ring2.setAlpha(0.6); }
+    });
+
+    // aufsteigende Blasen
+    for (let i = 0; i < 7; i++){
+      const bub = this.add.circle(
+        px + Phaser.Math.Between(-26, 26), py,
+        Phaser.Math.FloatBetween(2, 4.5), 0xffffff, 0.55
+      ).setDepth(2);
+      this.tweens.add({
+        targets: bub,
+        y: py - this.TILE*1.5,
+        x: bub.x + Phaser.Math.Between(-10, 10),
+        alpha: 0,
+        duration: Phaser.Math.Between(1800, 3000),
+        delay: i * 260,
+        repeat: -1,
+        onRepeat: ()=> { bub.y = py; bub.setAlpha(0.55); }
+      });
+    }
+
+    // Schild über dem Ausgang
+    const label = this.add.text(px, py - this.TILE*0.78, "↑ Ausgang", {
+      fontFamily: "Georgia, serif", fontSize: "17px", color: "#eafffb",
+      stroke: "#0a2028", strokeThickness: 4
+    }).setOrigin(0.5).setDepth(3);
+    this.tweens.add({ targets: label, y: label.y - 5, duration: 1500, yoyo: true, repeat: -1, ease: "sine.inOut" });
   }
 
   // ====== Stimmung: Lichtschleier + Schwebeteilchen ======

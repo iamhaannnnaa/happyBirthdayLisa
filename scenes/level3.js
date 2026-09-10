@@ -31,6 +31,11 @@ export default class Level3 extends Phaser.Scene {
     this.load.image("shark_nala", base + "Nala.png"); // Achtung: N groß
     this.load.image("shark_luna", base + "Luna.png"); // Achtung: L groß
 
+    // Logbuch-Optik
+    this.load.image("book_icon",       "assets/objects/level3/book_icon.png");
+    this.load.image("parchment_wide",  "assets/objects/level3/parchment_wide.png");
+    this.load.image("parchment",       "assets/objects/level2/parchment.png");
+
     // >>> NEU: Geschenk-Assets (deine Pfade & Namen)
     this.load.image("gift_icon",   "assets/objects/Gift.png");
     this.load.image("gift_reward", "assets/objects/Opfer.jpg");
@@ -104,15 +109,18 @@ export default class Level3 extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", toMenu);
     this.input.keyboard.addCapture(['SPACE', 'P']); // <-- wichtig
 
-    // --- Touch: Joystick + Foto-Button ---
+    // --- Bedienung: Joystick, Foto-Knopf und Logbuch ---
     const onTouchAction = ()=> this.takePhoto();
+    const onTouchBook   = ()=> this.toggleBook();
     this.game.events.on("touch-menu", toMenu);
     this.game.events.on("touch-action", onTouchAction);
+    this.game.events.on("touch-book", onTouchBook);
     this.events.once("shutdown", ()=>{
       this.game.events.off("touch-menu", toMenu);
       this.game.events.off("touch-action", onTouchAction);
+      this.game.events.off("touch-book", onTouchBook);
     });
-    startTouch(this, { action:true, label:"📷" });
+    startTouch(this, { action:true, label:"📷", book:true });
 
     // --- Haie spawnen: weniger, aber mind. 1 pro Art ---
     this.sharks = this.physics.add.group();
@@ -156,7 +164,7 @@ export default class Level3 extends Phaser.Scene {
       .setDepth(1001);
 
     // Blitz-Overlay (HUD)
-    this.flash = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 0xffffff, 0)
+    this.flash = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width*2, this.scale.height*2, 0xffffff, 0)
       .setScrollFactor(0).setDepth(1200);
 
     // Foto-Input (Event; Fallback via update())
@@ -165,19 +173,39 @@ export default class Level3 extends Phaser.Scene {
     this.input.keyboard.on("keydown-SPACE", shoot);
     this.input.keyboard.on("keydown-P", shoot);
 
-    // --- HUD oben links ---
-    this.hud = this.add.text(16, 16, "", {
-      fontFamily:"system-ui, sans-serif", fontSize:"20px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
-    }).setScrollFactor(0).setDepth(9000);
+    // --- Anzeige (zoomfest) ---
+    // Die Kamera zoomt hier 1.25x. Ein Element mit scrollFactor 0 wandert
+    // dadurch aus dem Bild – genau deshalb waren Zähler und Logbuch vorher
+    // unsichtbar. Alles Feste sitzt jetzt in einem Container, der den Zoom
+    // herausrechnet; Kinder werden relativ zur Bildmitte platziert.
+    const Wd = this.scale.width, Hd = this.scale.height;
+    this.uiRoot = this.add.container(Wd/2, Hd/2)
+      .setScrollFactor(0)
+      .setScale(1 / (this.cameras.main.zoom || 1))
+      .setDepth(9000);
+    this.ui = (x, y) => ({ x: x - Wd/2, y: y - Hd/2 });   // Bildschirm → Container
+
+    // Für anklickbare Elemente: die bleiben direkte Szenen-Kinder (in einem
+    // skalierten Container greift die Klickfläche nicht zuverlässig) und
+    // werden stattdessen umgerechnet platziert.
+    this.fixedPos = (sx, sy) => {
+      const z = this.cameras.main.zoom || 1;
+      return { x: Wd/2 + (sx - Wd/2)/z, y: Hd/2 + (sy - Hd/2)/z };
+    };
+
+    const hudPos = this.ui(28, 26);
+    this.hud = this.add.text(hudPos.x, hudPos.y, "", {
+      fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#e6f0ff", stroke:"#000", strokeThickness:4
+    });
+    this.uiRoot.add(this.hud);
     this.updateHud();
 
-    // --- Capture-Meldung oben rechts (alte Mini-Meldung; optional)
+    // --- Capture-Meldung oben mittig ---
     this.capturePanel = this.makeCapturePanel();
+    this.uiRoot.add(this.capturePanel);
 
-    // --- Logbuch ---
-    this.bookBtn = this.makeBookButton();
-    this.bookBtn.setDepth(10000);
-    this.bookBtn._label.setDepth(10001);
+    // Das Logbuch-Symbol liegt in der Bedien-Ebene (TouchScene) –
+    // dort stimmen Klickfläche und Symbol überein.
 
     this.bookOpen = false;
     this.bookLayer = this.makeBookLayer();
@@ -362,6 +390,7 @@ export default class Level3 extends Phaser.Scene {
     if (newCaught.length > 0){
       this.saveDex();
       this.updateHud();
+      this.pulseBookButton();          // Buch oben rechts kurz hüpfen lassen
       if (this.bookOpen) this.refreshBook();
     }
 
@@ -383,18 +412,20 @@ export default class Level3 extends Phaser.Scene {
     const total = this.SPECIES.length;
     let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
     const hint = touchEnabled() ? "" : "   [SPACE] Foto   [B] Logbuch   [ESC] Menü";
-    this.hud.setText(`Fotografiert: ${have} / ${total}${hint}`);
+    this.hud.setText(`Haie: ${have} / ${total}${hint}`);
   }
 
   makeCapturePanel(){
-    const pad = 16;
-    const W = this.scale.width;
-    const panel = this.add.container(W - (320 + pad), pad).setScrollFactor(0).setDepth(9800);
-    const bg = this.add.rectangle(0, 0, 320, 52, 0x0d2e46, 0.95).setOrigin(0,0);
-    const text = this.add.text(12, 8, "", {
-      fontFamily:"system-ui, sans-serif", fontSize:"18px", color:"#cfe9ff", stroke:"#000", strokeThickness:3,
-      wordWrap: { width: 296 }
-    });
+    // oben mittig, damit sie unter keinem Bedienelement liegt
+    const p = this.ui(this.scale.width/2 - 190, 22);
+    const panel = this.add.container(p.x, p.y);
+    const bg = this.add.rectangle(0, 0, 380, 54, 0x0d2e46, 0.95).setOrigin(0,0)
+      .setStrokeStyle(2, 0x79d0ff, 0.5);
+    const text = this.add.text(190, 27, "", {
+      fontFamily:"system-ui, sans-serif", fontSize:"19px", color:"#cfe9ff",
+      stroke:"#000", strokeThickness:3, align:"center",
+      wordWrap: { width: 356 }
+    }).setOrigin(0.5);
     panel.add([bg, text]);
     panel.setAlpha(0);
     panel._text = text;
@@ -414,35 +445,51 @@ export default class Level3 extends Phaser.Scene {
     });
   }
 
-  makeBookButton(){
-    const pad = 16;
-    const x = this.scale.width - (110 + pad);
-    const y = this.scale.height - (40 + pad);
-    const btn = this.add.rectangle(x, y, 110, 40, 0x0d2e46, 1).setScrollFactor(0).setInteractive({ useHandCursor:true });
-    const txt = this.add.text(x, y, "Logbuch [B]", {
-      fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
-    }).setOrigin(0.5).setScrollFactor(0);
-    btn.on("pointerover", ()=> btn.setFillStyle(0x134062,1));
-    btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));
-    btn.on("pointerup",   ()=> this.toggleBook());
-    this.input.keyboard.on("keydown-B", ()=> this.toggleBook());
-    btn._label = txt;
-    return btn;
+  // Hinweis am Logbuch-Symbol, wenn eine neue Art dazukommt
+  pulseBookButton(){
+    const t = this.scene.get("TouchScene");
+    if (t && t.scene.isActive() && t.pulseBook) t.pulseBook();
   }
 
   makeBookLayer(){
     const W = this.scale.width, H = this.scale.height;
-    const layer = this.add.container(0,0).setScrollFactor(0);
-    const dim = this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.55);
-    const panelW = Math.min(920, W*0.9), panelH = Math.min(620, H*0.85);
-    const panel = this.add.rectangle(W/2, H/2, panelW, panelH, 0x071a2b, 0.98);
-    const title = this.add.text(W/2, panel.getTopCenter().y + 16, "Logbuch  —  [B] schließen", {
-      fontFamily:"system-ui", fontSize:"28px", color:"#cfe9ff", stroke:"#000", strokeThickness:4
-    }).setOrigin(0.5,0);
-    const list = this.add.container(panel.getTopLeft().x + 28, panel.getTopLeft().y + 68);
+    const layer = this.add.container(W/2, H/2)
+      .setScrollFactor(0)
+      .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
 
-    layer.add([dim, panel, title, list]);
-    layer._panel = panel;
+    const dim = this.add.rectangle(0, 0, W*2, H*2, 0x04141c, 0.72).setInteractive();
+
+    const panelW = 980, panelH = 660;
+    const paper = this.textures.exists("parchment_wide")
+      ? this.add.image(0, 0, "parchment_wide").setOrigin(0.5).setDisplaySize(panelW, panelH)
+      : this.add.rectangle(0, 0, panelW, panelH, 0xe9dcbf, 1).setOrigin(0.5);
+
+    const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+    const title = this.add.text(0, -panelH/2 + 34, "Hai-Logbuch", {
+      fontFamily: SERIF, fontSize: "36px", color: "#3f2d1c", fontStyle: "italic"
+    }).setOrigin(0.5, 0);
+
+    // Trennlinie unter dem Titel
+    const rule = this.add.rectangle(0, -panelH/2 + 92, panelW - 150, 2, 0x8a7350, 0.6).setOrigin(0.5);
+
+    // Schließen-Knopf oben rechts auf dem Papier
+    const closeBtn = this.add.circle(panelW/2 - 46, -panelH/2 + 46, 22, 0x8e2f2c, 1)
+      .setInteractive({ useHandCursor: true });
+    const closeTxt = this.add.text(closeBtn.x, closeBtn.y, "✕", {
+      fontFamily: SERIF, fontSize: "22px", color: "#f4ddd6"
+    }).setOrigin(0.5);
+    closeBtn.on("pointerdown", ()=> this.toggleBook());
+
+    const list = this.add.container(-panelW/2, -panelH/2);
+
+    layer.add([dim, paper, title, rule, closeBtn, closeTxt, list]);
+
+    // Tippen schließt – große Fläche, damit der Kamera-Zoom keine Rolle spielt
+    layer.setInteractive(new Phaser.Geom.Rectangle(-9999,-9999,19999,19999),
+                         Phaser.Geom.Rectangle.Contains);
+    layer.on("pointerdown", ()=> { if (this.bookOpen) this.toggleBook(); });
+    layer._panelW = panelW;
+    layer._panelH = panelH;
     layer._list = list;
 
     this.buildBookList(layer);
@@ -453,80 +500,67 @@ export default class Level3 extends Phaser.Scene {
     const list = layer._list;
     list.removeAll(true);
 
+    const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+    const INK   = "#3f2d1c";
+    const FADED = "#8d7a5c";
+
     const total = this.SPECIES.length;
     let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
 
-    // Fortschritt (wie bisher)
-    const prog = this.add.text(layer._panel.getCenter().x, layer._panel.getTopCenter().y + 52,
-      `Fortschritt: ${have} / ${total}`, {
-        fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff", stroke:"#000", strokeThickness:3
-      }).setOrigin(0.5,0);
+    const panelW = layer._panelW, panelH = layer._panelH;
+
+    // Fortschritt unter der Trennlinie
+    const prog = this.add.text(panelW/2, 108,
+      have >= total ? `Alle ${total} Arten gefunden!` : `${have} von ${total} Arten fotografiert`, {
+        fontFamily: SERIF, fontSize: "22px", color: have >= total ? "#7a5a1c" : FADED, fontStyle: "italic"
+      }).setOrigin(0.5, 0);
     list.add(prog);
 
-    // Einträge (2 Spalten) – mit Thumbnails
-    const colW  = (layer._panel.width - 56) / 2;
-    const rowH  = 72;   // höher wegen Bildchen
-    const padL  = 10;   // linker Innenabstand je Zelle
-    const thumbH = 56;  // Zielhöhe der Thumbnails
-    const gap   = 14;   // Abstand Bild -> Name
-    const nameW = 280;  // Breite bis zum Status
+    // Zwei Spalten, sechs Zeilen
+    const cols = 2, rows = Math.ceil(total / cols);
+    const marginX = 70, topY = 156;
+    const colW = (panelW - marginX*2) / cols;
+    const rowH = 76;
+    const thumbH = 54;
 
     let idx = 0;
     for (const s of this.SPECIES){
-      const caught = !!this.dex.caught[s.id]; // <-- FIX: keine extra-Klammer
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      const baseX = col * colW;
-      const baseY = 40 + row * rowH;
+      const caught = !!this.dex.caught[s.id];
+      const col = idx % cols, row = Math.floor(idx / cols);
+      const x0 = marginX + col*colW;
+      const y0 = topY + row*rowH;
 
-      let nameX;
+      // dezente Linie wie in einem echten Logbuch
+      list.add(this.add.rectangle(x0, y0 + thumbH*0.72, colW - 34, 1, 0x8a7350, 0.35).setOrigin(0, 0.5));
 
       if (this.textures.exists(s.tex)){
-        // PNG-Thumbnail
-        const img = this.add.image(baseX + padL, baseY + 16, s.tex).setOrigin(0,0.5);
-        const tex = this.textures.get(s.tex);
-        const src = tex && tex.getSourceImage ? tex.getSourceImage() : null; // <-- FIX: kein ?.()
-        const scale = (src && src.height) ? (thumbH / src.height) : 1;
-        img.setScale(scale);
+        const img = this.add.image(x0 + 6, y0 + 18, s.tex).setOrigin(0, 0.5);
+        const src = this.textures.get(s.tex).getSourceImage();
+        const sc = (src && src.height) ? (thumbH / src.height) : 1;
+        img.setScale(sc);
+        if (!caught){ img.setTint(0x2b2418); img.setAlpha(0.28); }   // noch unbekannt
         list.add(img);
-        nameX = baseX + padL + (src ? src.width * scale : thumbH) + gap;
-      } else {
-        // Fallback: farbiger Punkt
-        const dot = this.add.circle(baseX + padL + 18, baseY + 16, 12, s.color);
-        list.add(dot);
-        nameX = baseX + padL + 18 + 12 + gap;
       }
 
-      // Name
-      const name = this.add.text(nameX, baseY, s.name, {
-        fontFamily:"system-ui", fontSize:"22px", color:"#e6f0ff", stroke:"#000", strokeThickness:3
+      const name = this.add.text(x0 + 110, y0 + 2, caught ? s.name : "? ? ?", {
+        fontFamily: SERIF, fontSize: "24px", color: caught ? INK : FADED
       });
       list.add(name);
 
-      // Status (✓ / –)
-      const status = this.add.text(nameX + nameW, baseY, caught ? "✓" : "–", {
-        fontFamily:"system-ui", fontSize:"22px",
-        color: caught ? "#a7f5a1" : "#ffc0c0", stroke:"#000", strokeThickness:3
+      const status = this.add.text(x0 + colW - 52, y0 + 2, caught ? "✓" : "–", {
+        fontFamily: SERIF, fontSize: "24px", color: caught ? "#2f6b3a" : FADED
       });
       list.add(status);
 
       idx++;
     }
 
-    // Reset-Button (wie bisher)
-    const btn = this.add.rectangle(layer._panel.getBottomCenter().x, layer._panel.getBottomCenter().y - 28, 200, 40, 0x0d2e46, 1)
-      .setInteractive({useHandCursor:true});
-    const btnt = this.add.text(btn.x, btn.y, "Fortschritt zurücksetzen", {
-      fontFamily:"system-ui", fontSize:"18px", color:"#cfe9ff", stroke:"#000", strokeThickness:2
-    }).setOrigin(0.5);
-    btn.on("pointerover", ()=> btn.setFillStyle(0x134062,1));
-    btn.on("pointerout",  ()=> btn.setFillStyle(0x0d2e46,1));
-    btn.on("pointerup", ()=>{
-      this.dex.caught = {};
-      this.saveDex(); this.updateHud(); this.refreshBook();
-    });
-
-    list.add(btn); list.add(btnt);
+    // Hinweis unten
+    const foot = this.add.text(panelW/2, panelH - 46,
+      "Tippe irgendwo, um das Logbuch zu schließen.", {
+        fontFamily: SERIF, fontSize: "18px", color: FADED, fontStyle: "italic"
+      }).setOrigin(0.5);
+    list.add(foot);
   }
 
   toggleBook(){
@@ -549,21 +583,18 @@ export default class Level3 extends Phaser.Scene {
   }
 
   repositionUI(){
-    const pad = 16;
-    this.capturePanel?.setPosition(this.scale.width - (320 + pad), pad);
-    if (this.bookBtn && this.bookBtn._label){
-      const x = this.scale.width - (110 + pad);
-      const y = this.scale.height - (40 + pad);
-      this.bookBtn.setPosition(x, y);
-      this.bookBtn._label.setPosition(x, y);
-    }
+    // Die feste Anzeige sitzt in uiRoot und richtet sich nach der
+    // Design-Größe – die ändert sich bei Scale.FIT nicht. Hier müssen
+    // nur die mittigen Overlays nachgeführt werden.
+    if (this.uiRoot) this.uiRoot.setPosition(this.scale.width/2, this.scale.height/2);
+    if (this.bookLayer) this.bookLayer.setPosition(this.scale.width/2, this.scale.height/2);
 
     // Foto-Overlay
     if (this.photoOverlay){
       this.photoOverlay.setPosition(this.scale.width/2, this.scale.height/2);
       if (this.photoOverlay._dim){
-        this.photoOverlay._dim.width  = this.scale.width;
-        this.photoOverlay._dim.height = this.scale.height;
+        this.photoOverlay._dim.width  = this.scale.width*2;
+        this.photoOverlay._dim.height = this.scale.height*2;
       }
     }
 
@@ -571,8 +602,8 @@ export default class Level3 extends Phaser.Scene {
     if (this.introOverlay){
       this.introOverlay.setPosition(this.scale.width/2, this.scale.height/2);
       if (this.introOverlay._dim){
-        this.introOverlay._dim.width  = this.scale.width;
-        this.introOverlay._dim.height = this.scale.height;
+        this.introOverlay._dim.width  = this.scale.width*2;
+        this.introOverlay._dim.height = this.scale.height*2;
       }
     }
 
@@ -580,8 +611,8 @@ export default class Level3 extends Phaser.Scene {
     if (this.giftOverlay){
       this.giftOverlay.setPosition(this.scale.width/2, this.scale.height/2);
       if (this.giftOverlay._dim){
-        this.giftOverlay._dim.width  = this.scale.width;
-        this.giftOverlay._dim.height = this.scale.height;
+        this.giftOverlay._dim.width  = this.scale.width*2;
+        this.giftOverlay._dim.height = this.scale.height*2;
       }
     }
 
@@ -589,8 +620,8 @@ export default class Level3 extends Phaser.Scene {
     if (this.rewardLayer){
       this.rewardLayer.setPosition(this.scale.width/2, this.scale.height/2);
       if (this.rewardLayer._dim){
-        this.rewardLayer._dim.width  = this.scale.width;
-        this.rewardLayer._dim.height = this.scale.height;
+        this.rewardLayer._dim.width  = this.scale.width*2;
+        this.rewardLayer._dim.height = this.scale.height*2;
       }
     }
   }
@@ -748,10 +779,11 @@ export default class Level3 extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(20000) // ganz oben
       .setAlpha(0)
-      .setVisible(false);
+      .setVisible(false)
+      .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
 
     // Dimmer
-    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0.5);
+    const dim = this.add.rectangle(0, 0, W*2, H*2, 0x000000, 0.5).setOrigin(0.5);
     // Panel
     const panelW = Math.min(560, W*0.9);
     const panelH = 140;
@@ -780,44 +812,61 @@ export default class Level3 extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(25000)
       .setVisible(false)
-      .setAlpha(0);
+      .setAlpha(0)
+      .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
 
-    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setOrigin(0.5);
+    const dim = this.add.rectangle(0, 0, W*2, H*2, 0x04141c, 0.72).setOrigin(0.5);
 
-    const panelW = Math.min(720, W*0.9);
-    const panelH = Math.min(460, H*0.85);
-    const panel = this.add.rectangle(0, 0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
-    panel.setStrokeStyle(4, 0xaad4ff, 1);
+    // Gleiche Optik wie der Brief in Level 2
+    const panelW = 760, panelH = 520;
+    const paper = this.textures.exists("parchment")
+      ? this.add.image(0, 0, "parchment").setOrigin(0.5).setDisplaySize(panelW, panelH)
+      : this.add.rectangle(0, 0, panelW, panelH, 0xe9dcbf, 1).setOrigin(0.5);
+    paper.setAngle(-1.1);
 
-    const story =
-`Willkommen im offenen Meer!
-Du bist eine Forscherin auf einer besonderen Mission:
-Alle Haie der Region zu entdecken und zu fotografieren.
+    const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+    const INK   = "#3f2d1c";
 
-Anders als sonst brauchst du keinen Käfig – dein Mut und deine Kamera reichen völlig aus.
+    const head = this.add.text(-panelW/2 + 64, -panelH/2 + 46, "Liebe Lisa,", {
+      fontFamily: SERIF, fontSize: "34px", color: INK, fontStyle: "italic"
+    }).setOrigin(0, 0).setAngle(-1.1);
 
-So funktioniert es:
+    const brief =
+`hier draußen brauchst Du keinen Käfig – Deine Kamera reicht.
+
+Finde alle zwölf Haiarten und fotografiere sie. Zwei davon
+kennst Du längst: Nala und Luna.
+
 ${touchEnabled()
-  ? "- Mit dem Joystick unten links schwimmst du.\n- Mit dem 📷-Knopf unten rechts machst du ein Foto.\n- Mit „Logbuch“ unten rechts siehst du deinen Fortschritt."
-  : "- Mit den Pfeiltasten oder [WASD] steuerst du deine Taucherin.\n- Drücke [LEERTASTE], um ein Foto zu machen.\n- Mit [B] öffnest du dein Logbuch und siehst deinen Fortschritt."}
+  ? "Schwimm mit dem Joystick rechts, halte die Kamera auf einen\nHai und drück den 📷-Knopf links."
+  : "Steuere mit [WASD] oder den Pfeiltasten und drück\ndie [Leertaste], um ein Foto zu machen."}
 
-Deine Aufgabe:
-Finde alle Arten von Haien, fotografiere sie und hake deine Liste ab.
+Oben rechts liegt Dein Logbuch. Dort siehst Du, wer Dir fehlt –
+und wenn es voll ist, wartet Deine Überraschung.`;
 
-${touchEnabled() ? "Tippe auf den Bildschirm, um deine Reise zu beginnen!" : "Drücke [SPACE], um deine Reise zu beginnen!"}`;
+    const txt = this.add.text(-panelW/2 + 64, -panelH/2 + 112, brief, {
+      fontFamily: SERIF, fontSize: "21px", color: INK, align: "left",
+      lineSpacing: 7, wordWrap: { width: panelW - 150 }
+    }).setOrigin(0, 0).setAngle(-1.1);
 
-    const txt = this.add.text(0, 0, story, {
-      fontFamily:"system-ui, sans-serif",
-      fontSize:"20px",
-      color:"#103a5c",
-      align:"left",
-      wordWrap: { width: panelW - 60 }
+    // Siegel unten rechts
+    const sealX = panelW/2 - 86, sealY = panelH/2 - 74;
+    const seal  = this.add.circle(sealX, sealY, 30, 0x8e2f2c, 1);
+    const sealR = this.add.circle(sealX, sealY, 24, 0x000000, 0).setStrokeStyle(2, 0xb75a52, 0.9);
+    const sealT = this.add.text(sealX, sealY, "H", {
+      fontFamily: SERIF, fontSize: "26px", color: "#f0cfc4"
     }).setOrigin(0.5);
 
-    cont.add([dim, panel, txt]);
+    const hint = this.add.text(0, panelH/2 + 44,
+      touchEnabled() ? "Tippe auf den Bildschirm, um loszutauchen" : "[Leertaste] zum Starten", {
+      fontFamily: "system-ui, sans-serif", fontSize: "20px", color: "#cfe9ff"
+    }).setOrigin(0.5).setAlpha(0.85);
+    this.tweens.add({ targets: hint, alpha: 0.35, duration: 900, yoyo: true, repeat: -1 });
+
+    cont.add([dim, paper, head, txt, seal, sealR, sealT, hint]);
     cont.setAlpha(1);
-    cont._dim = dim; // für Resize
-    cont._panel = panel;
+    cont._dim = dim;      // für Resize
+    cont._panel = paper;
     return cont;
   }
 
@@ -890,9 +939,10 @@ ${touchEnabled() ? "Tippe auf den Bildschirm, um deine Reise zu beginnen!" : "Dr
       .setScrollFactor(0)
       .setDepth(26000)
       .setVisible(false)
-      .setAlpha(0);
+      .setAlpha(0)
+      .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
 
-    const dim = this.add.rectangle(0,0, W,H, 0x000000, 0.6).setOrigin(0.5);
+    const dim = this.add.rectangle(0,0, W*2,H*2, 0x000000, 0.6).setOrigin(0.5);
 
     const panelW = Math.min(620, W*0.9);
     const panelH = Math.min(360, H*0.85);
@@ -965,9 +1015,10 @@ cont.add([dim, panel, txt, icon, hint]);
         .setScrollFactor(0)
         .setDepth(27000)
         .setVisible(false)
-        .setAlpha(0);
+        .setAlpha(0)
+        .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
 
-      const dim = this.add.rectangle(0,0, W,H, 0x000000, 0.85).setOrigin(0.5).setInteractive();
+      const dim = this.add.rectangle(0,0, W*2,H*2, 0x000000, 0.85).setOrigin(0.5).setInteractive();
 
       let img;
       if (this.textures.exists("gift_reward")){
