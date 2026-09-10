@@ -82,13 +82,13 @@ export default class MenuScene extends Phaser.Scene {
 
     // Zurück
     if (!touchEnabled()){
-      this.add.text(28, H-32, "⟵ Zurück (ESC)", {
+      this.add.text(52, H-52, "⟵ Zurück (ESC)", {
         fontFamily:"system-ui, sans-serif", fontSize:"24px", color:"#a0c8ff"
       }).setOrigin(0,1).setAlpha(0.9);
     } else {
-      const back = this.add.rectangle(150, H-56, 220, 62, 0x0b2b3b, 0.8)
+      const back = this.add.rectangle(174, H-80, 220, 62, 0x0b2b3b, 0.8)
         .setStrokeStyle(2, 0x79d0ff, 0.8).setInteractive({ useHandCursor:true });
-      this.add.text(150, H-56, "⟵ Zurück", {
+      this.add.text(174, H-80, "⟵ Zurück", {
         fontFamily:"system-ui, sans-serif", fontSize:"26px", color:"#cfe9ff"
       }).setOrigin(0.5);
       back.on("pointerdown", ()=> this.scene.start("SplashScene"));
@@ -96,7 +96,7 @@ export default class MenuScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("SplashScene"));
 
     // Spielstand zurücksetzen (eigenes Fenster statt Browser-Dialog)
-    const resetTxt = this.add.text(W - 44, H - 46, "Spielstand zurücksetzen", {
+    const resetTxt = this.add.text(W - 68, H - 70, "Spielstand zurücksetzen", {
       fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#8fa6b4"
     }).setOrigin(1, 1);
     // Deutlich größere Trefferfläche als der Text selbst – der war zu schmal

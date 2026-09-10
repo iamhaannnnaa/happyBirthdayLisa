@@ -261,13 +261,13 @@ export default class LevelCats extends Phaser.Scene {
   buildHud(){
     const Wd = this.scale.width;
     this.hud = this.add.container(0,0).setDepth(9000).setScrollFactor(0);
-    const box = this.add.rectangle(30, 26, 430, 92, 0x120d0a, 0.62)
+    const box = this.add.rectangle(48, 44, 430, 92, 0x120d0a, 0.62)
       .setOrigin(0,0).setStrokeStyle(2, 0xd8c9a8, 0.35);
     this.hud.add(box);
 
     this.hudIcons = {};
     GEAR.forEach((g, i)=>{
-      const x = 78 + i*136, y = 70;
+      const x = 96 + i*136, y = 88;
       const src = this.textures.get(g.tex).getSourceImage();
       const ico = this.add.image(x, y, g.tex).setAlpha(0.22);
       ico.setDisplaySize(76, 76 * (src.height/src.width));
@@ -278,7 +278,7 @@ export default class LevelCats extends Phaser.Scene {
       this.hud.add([ico, txt]);
     });
 
-    this.futterTxt = this.add.text(Wd-40, 40, "🐟 Futter: 0", {
+    this.futterTxt = this.add.text(Wd-200, 58, "🐟 Futter: 0", {
       fontFamily:"system-ui, sans-serif", fontSize:"28px", color:"#f0e4c8",
       stroke:"#000", strokeThickness:3
     }).setOrigin(1,0).setDepth(9000).setScrollFactor(0);

@@ -116,7 +116,7 @@ export default class TouchScene extends Phaser.Scene {
     }
 
     // ---------- Menü-Button unten mittig ----------
-    const mx = W/2, my = H - 54;
+    const mx = W/2, my = H - 78;
     this.menuBtn = this.add.rectangle(mx, my, 176, 58, 0x0b2b3b, 0.75)
       .setStrokeStyle(2, 0x79d0ff, 0.8).setDepth(10)
       .setInteractive({ useHandCursor:true });
@@ -140,7 +140,7 @@ export default class TouchScene extends Phaser.Scene {
 
   // ---------- Logbuch-Knopf ----------
   makeBookButton(W, H){
-    const bx = W - 104, by = 104;
+    const bx = W - 250, by = 130;   // links neben dem Vollbild-Knopf der Seite
     const group = this.add.container(bx, by).setDepth(20);
 
     const halo = this.add.circle(0, 0, 60, 0x0d2e46, 0.8).setStrokeStyle(2, 0x79d0ff, 0.7);

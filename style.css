@@ -15,11 +15,17 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 #game-root {
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;          /* iOS: echte Höhe ohne Adressleisten-Sprung */
-  /* Kein grid/place-items hier! Phaser zentriert das Canvas selbst
-     (autoCenter). Beides zusammen hat das Bild nach rechts verschoben. */
+  /* Das Spielfeld hält Abstand zu Notch, abgerundeten Ecken und dem
+     Strich unten. Ohne das lagen Anzeigen am Rand halb außerhalb,
+     sobald das Spiel wirklich randlos läuft (Home-Bildschirm-App).
+     Kein grid/place-items hier! Phaser zentriert das Canvas selbst. */
+  position: fixed;
+  top:    max(10px, env(safe-area-inset-top));
+  right:  max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left:   max(10px, env(safe-area-inset-left));
+  width: auto;
+  height: auto;
   overflow: hidden;
 }
 canvas {

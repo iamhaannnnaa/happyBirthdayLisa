@@ -197,12 +197,12 @@ export default class LevelMemory extends Phaser.Scene {
   }
 
   buildHud(){
-    this.hudTxt = this.add.text(28, 24, `Erinnerungen: 0 / ${FRAGEN.length}`, {
+    this.hudTxt = this.add.text(48, 42, `Erinnerungen: 0 / ${FRAGEN.length}`, {
       fontFamily:"system-ui, sans-serif", fontSize:"30px", color:"#e6f0ff",
       stroke:"#000", strokeThickness:3
     }).setScrollFactor(0).setDepth(9000);
 
-    const BAR_W = 240, BAR_H = 20, left = W - 40 - BAR_W, y = 40;
+    const BAR_W = 240, BAR_H = 20, left = W - 200 - BAR_W, y = 58;   // Platz für den Vollbild-Knopf
     this.add.rectangle(left, y, BAR_W, BAR_H, 0xffffff, 0.12)
       .setOrigin(0,0.5).setScrollFactor(0).setDepth(9000);
     this.oxyFg = this.add.rectangle(left, y, BAR_W, BAR_H, 0x67b7ff, 0.95)

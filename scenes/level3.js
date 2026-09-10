@@ -198,7 +198,7 @@ export default class Level3 extends Phaser.Scene {
       return { x: Wd/2 + (sx - Wd/2)/z, y: Hd/2 + (sy - Hd/2)/z };
     };
 
-    const hudPos = this.ui(28, 26);
+    const hudPos = this.ui(50, 46);
     this.hud = this.add.text(hudPos.x, hudPos.y, "", {
       fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#e6f0ff", stroke:"#000", strokeThickness:4
     });

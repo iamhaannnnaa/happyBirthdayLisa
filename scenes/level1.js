@@ -102,7 +102,7 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
     this.gameOver   = false;
 
     // HUD
-    this.uiCoins = this.add.text(24,24,`Münzen: 0 / ${this.totalCoins}`,{
+    this.uiCoins = this.add.text(48,44,`Münzen: 0 / ${this.totalCoins}`,{
       fontFamily:"system-ui, sans-serif", fontSize:"32px", color:"#e6f0ff"
     }).setScrollFactor(0).setDepth(20);
 
@@ -402,11 +402,11 @@ makeOxygenBar(){
   // Layout: rechts 40px Abstand
   const BAR_W = 220;
   const BAR_H = 20;
-  const RIGHT_PAD = 40;
+  const RIGHT_PAD = 200;   // Platz für den Vollbild-Knopf der Seite
 
   // Linke Kante der Leiste
   const leftX = W - RIGHT_PAD - BAR_W;
-  const y     = 40;
+  const y     = 58;
 
   // Hintergrund + Rahmen LINKS-bündig
   const bg = this.add.rectangle(leftX, y, BAR_W, BAR_H, 0xffffff, 0.12)

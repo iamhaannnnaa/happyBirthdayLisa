@@ -17,8 +17,12 @@ import TouchScene  from "./scenes/touch.js";   // ⬅️ Touch-Steuerung fürs H
 // die Seite hochkant geladen und erst danach gedreht wird.
 const DESIGN_HEIGHT = 1080;
 const DESIGN_WIDTH = (function(){
-  const w = window.innerWidth  || 1920;
-  const h = window.innerHeight || 1080;
+  // Nicht das ganze Fenster messen, sondern den Kasten, in dem das Spiel
+  // wirklich liegt – der hält Abstand zu Notch und Bildschirmrand (style.css).
+  const root = document.getElementById("game-root");
+  const kasten = root && root.getBoundingClientRect();
+  const w = (kasten && kasten.width)  || window.innerWidth  || 1920;
+  const h = (kasten && kasten.height) || window.innerHeight || 1080;
   const lang = Math.max(w, h), kurz = Math.max(1, Math.min(w, h));
   const verhaeltnis = Math.min(Math.max(lang / kurz, 16/9), 21/9);
   return Math.round(DESIGN_HEIGHT * verhaeltnis);

@@ -13,7 +13,7 @@ export default class SplashScene extends Phaser.Scene {
     const sc = Math.max(W / img.width, H / img.height);
     img.setScale(sc);
 
-    this.add.text(W/2, H*0.92, "Tippen/Klicken oder [Leertaste] zum Start",
+    this.add.text(W/2, H*0.88, "Tippen/Klicken oder [Leertaste] zum Start",
       { fontFamily:"system-ui, sans-serif", fontSize:"28px", color:"#e6f0ff" }
     ).setOrigin(0.5).setAlpha(0.9);
 
