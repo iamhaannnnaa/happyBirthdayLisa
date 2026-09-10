@@ -1,5 +1,8 @@
 // scenes/level3.js
 const Phaser = window.Phaser;
+import { readAxis, startTouch, touchEnabled } from "./touch.js";
+import { markLevelDone } from "../progress.js";
+
 const L3_VERSION = "L3-openworld-2025-09-12-f"; // + Foto-Overlay & robustes Shooting
 
 export default class Level3 extends Phaser.Scene {
@@ -97,8 +100,19 @@ export default class Level3 extends Phaser.Scene {
       a:"A", d:"D", w:"W", s:"S",
       space:"SPACE", p:"P", b:"B", esc:"ESC"
     });
-    this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
+    const toMenu = ()=> this.scene.start("MenuScene");
+    this.input.keyboard.on("keydown-ESC", toMenu);
     this.input.keyboard.addCapture(['SPACE', 'P']); // <-- wichtig
+
+    // --- Touch: Joystick + Foto-Button ---
+    const onTouchAction = ()=> this.takePhoto();
+    this.game.events.on("touch-menu", toMenu);
+    this.game.events.on("touch-action", onTouchAction);
+    this.events.once("shutdown", ()=>{
+      this.game.events.off("touch-menu", toMenu);
+      this.game.events.off("touch-action", onTouchAction);
+    });
+    startTouch(this, { action:true, label:"📷" });
 
     // --- Haie spawnen: weniger, aber mind. 1 pro Art ---
     this.sharks = this.physics.add.group();
@@ -186,15 +200,22 @@ export default class Level3 extends Phaser.Scene {
       this.physics.world.pause();
       this.player.setVelocity(0,0);
 
-      // Schließen mit [SPACE]
-      this.input.keyboard.once("keydown-SPACE", () => {
+      // Schließen mit [SPACE] oder Tippen
+      const closeIntro = () => {
+        if (!this.introOverlay || !this.introOverlay.visible) return;
         this.introOverlay.setVisible(false);
         this.bookOpen = false;
         this.physics.world.resume();
 
         // >>> Flag dauerhaft setzen
         try { localStorage.setItem(this.introKey, "1"); } catch(e) {}
-      });
+      };
+      this.input.keyboard.once("keydown-SPACE", closeIntro);
+      // Tippen schließt ebenfalls (gleiche Technik wie in Level 2)
+      this.introOverlay.setInteractive(
+        new Phaser.Geom.Rectangle(-9999,-9999,19999,19999), Phaser.Geom.Rectangle.Contains
+      );
+      this.introOverlay.once("pointerup", closeIntro);
     }
 
     // >>> NEU: Geschenk-Overlay vorbereiten
@@ -215,8 +236,9 @@ export default class Level3 extends Phaser.Scene {
 
     const speed = 300;
     const k = this.keys;
-    const ix = (k.left.isDown || k.a.isDown ? -1 : 0) + (k.right.isDown || k.d.isDown ? 1 : 0);
-    const iy = (k.up.isDown   || k.w.isDown ? -1 : 0) + (k.down.isDown || k.s.isDown ? 1 : 0);
+    const kx = (k.left.isDown || k.a.isDown ? -1 : 0) + (k.right.isDown || k.d.isDown ? 1 : 0);
+    const ky = (k.up.isDown   || k.w.isDown ? -1 : 0) + (k.down.isDown || k.s.isDown ? 1 : 0);
+    const { x: ix, y: iy } = readAxis(kx, ky);
     const moving = (ix !== 0 || iy !== 0);
 
     if (moving){
@@ -283,6 +305,9 @@ export default class Level3 extends Phaser.Scene {
 
   // ================= Foto-Logik =================
   takePhoto(){
+    // Kein Foto, solange Logbuch/Intro/Geschenk offen ist
+    if (this.bookOpen || this.gameOver) return;
+
     const now = this.time.now || performance.now();
     if (now - this.lastShotAt < 500) return; // kurzer Cooldown
     this.lastShotAt = now;
@@ -353,7 +378,8 @@ export default class Level3 extends Phaser.Scene {
   updateHud(){
     const total = this.SPECIES.length;
     let have = 0; for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
-    this.hud.setText(`Fotografiert: ${have} / ${total}   [SPACE] Foto   [B] Logbuch   [ESC] Menü`);
+    const hint = touchEnabled() ? "" : "   [SPACE] Foto   [B] Logbuch   [ESC] Menü";
+    this.hud.setText(`Fotografiert: ${have} / ${total}${hint}`);
   }
 
   makeCapturePanel(){
@@ -762,19 +788,19 @@ export default class Level3 extends Phaser.Scene {
     const story =
 `Willkommen im offenen Meer!
 Du bist eine Forscherin auf einer besonderen Mission:
-**Alle Haie der Region zu entdecken und zu fotografieren.**
+Alle Haie der Region zu entdecken und zu fotografieren.
 
 Anders als sonst brauchst du keinen Käfig – dein Mut und deine Kamera reichen völlig aus.
 
-**So funktioniert es:**
-- Mit den Pfeiltasten oder [WASD] steuerst du deine Taucherin.
-- Drücke [LEERTASTE], um ein Foto zu machen.
-- Mit [B] öffnest du dein Logbuch und siehst deinen Fortschritt.
+So funktioniert es:
+${touchEnabled()
+  ? "- Mit dem Joystick unten links schwimmst du.\n- Mit dem 📷-Knopf unten rechts machst du ein Foto.\n- Mit „Logbuch“ unten rechts siehst du deinen Fortschritt."
+  : "- Mit den Pfeiltasten oder [WASD] steuerst du deine Taucherin.\n- Drücke [LEERTASTE], um ein Foto zu machen.\n- Mit [B] öffnest du dein Logbuch und siehst deinen Fortschritt."}
 
 Deine Aufgabe:
 Finde alle Arten von Haien, fotografiere sie und hake deine Liste ab.
 
-Drücke [SPACE], um deine Reise zu beginnen!`;
+${touchEnabled() ? "Tippe auf den Bildschirm, um deine Reise zu beginnen!" : "Drücke [SPACE], um deine Reise zu beginnen!"}`;
 
     const txt = this.add.text(0, 0, story, {
       fontFamily:"system-ui, sans-serif",
@@ -828,17 +854,19 @@ Drücke [SPACE], um deine Reise zu beginnen!`;
 
   // ======= NEU: Spielabschluss + Geschenk =======
   checkCompletionOnce(){
-    // Schon gezeigt?
-    if (localStorage.getItem(this.giftKey) === "1") return;
-
     const total = this.SPECIES.length;
     let have = 0;
     for (const s of this.SPECIES) if (this.dex.caught[s.id]) have++;
 
-    if (have >= total){
-      try { localStorage.setItem(this.giftKey, "1"); } catch(e){}
-      this.showGiftOverlay();
-    }
+    if (have < total) return;
+
+    // Level gilt als geschafft, sobald das Logbuch voll ist
+    markLevelDone("Level3");
+
+    // Geschenk nur einmal automatisch aufpoppen lassen
+    if (localStorage.getItem(this.giftKey) === "1") return;
+    try { localStorage.setItem(this.giftKey, "1"); } catch(e){}
+    this.showGiftOverlay();
   }
 
   showGiftOverlay(){

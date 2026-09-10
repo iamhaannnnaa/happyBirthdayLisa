@@ -2,7 +2,8 @@ const Phaser = window.Phaser;
 
 export default class SplashScene extends Phaser.Scene {
   constructor(){ super("SplashScene"); }
-  preload(){ this.load.image("splash","assets/splash/start.png"); }
+  // .jpg statt .png: gleiches Bild, aber 160 KB statt 2,3 MB
+  preload(){ this.load.image("splash","assets/splash/start.jpg"); }
 
   create(){
     this.cameras.main.setBackgroundColor("#06121f");

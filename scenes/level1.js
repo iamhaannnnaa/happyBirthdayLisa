@@ -1,13 +1,16 @@
 // scenes/level1.js
 const Phaser = window.Phaser;
-const DEBUG = true;
+import { readAxis, startTouch } from "./touch.js";
+import { markLevelDone } from "../progress.js";
+
+const DEBUG = false;
 
 export default class Level1 extends Phaser.Scene {
   constructor(){ super("Level1"); }
 
   preload(){
     // BG
-    this.load.image("l1_back",  "assets/backgrounds/level1_back.png");
+    this.load.image("l1_back",  "assets/backgrounds/level1_back.jpg"); // war 2,1 MB als PNG
     this.load.image("l1_mid",   "assets/backgrounds/level1_mid.png");
     this.load.image("l1_fore",  "assets/backgrounds/level1_fore.png");
     this.load.image("caustics", "assets/backgrounds/caustics_overlay.png");
@@ -105,12 +108,18 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
     this.spawnCoins();
     this.spawnTriggerfish();
 
-    // ESC → Menü
-    this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
+    // ESC / Menü-Button → Menü
+    const toMenu = ()=> this.scene.start("MenuScene");
+    this.input.keyboard.on("keydown-ESC", toMenu);
+    this.game.events.on("touch-menu", toMenu);
+    this.events.once("shutdown", ()=> this.game.events.off("touch-menu", toMenu));
 
-    // Debug Toggle
+    // Touch-Steuerung (nur auf Handy/Tablet sichtbar)
+    startTouch(this);
+
+    // Debug Toggle (nur wenn DEBUG an ist – "D" ist sonst eine Bewegungstaste!)
     this._dbgGfx=null;
-    this.input.keyboard.on("keydown-D", ()=> this.drawDebug());
+    if (DEBUG) this.input.keyboard.on("keydown-D", ()=> this.drawDebug());
   }
 
   update(t, dt){
@@ -119,12 +128,13 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
     this.bubbles.iterate(c => c.update && c.update());
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
 
-    // Eingaben
+    // Eingaben (Tastatur + Joystick)
     const speed = 300;
-    const ix = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
+    const kx = (this.cursors.left.isDown||this.cursors.a.isDown ? -1 : 0)
              + (this.cursors.right.isDown||this.cursors.d.isDown ? 1 : 0);
-    const iy = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
+    const ky = (this.cursors.up.isDown||this.cursors.w.isDown ? -1 : 0)
              + (this.cursors.down.isDown||this.cursors.s.isDown ? 1 : 0);
+    const { x: ix, y: iy } = readAxis(kx, ky);
 
     if (ix || iy) {
       const len = Math.hypot(ix, iy) || 1;
@@ -285,7 +295,8 @@ makeOxygenBar(){
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
     if (this.textures.exists("diver")) this.player.play("diver_idle");
-    this.showEndPanel("Level geschafft! 🎉");
+    markLevelDone("Level1");                     // schaltet Level 2 frei
+    this.showEndPanel("Level geschafft! 🎉", "Level 2 ist jetzt freigeschaltet.");
   }
   fail(msg){
     if (this.gameOver) return;
@@ -294,11 +305,15 @@ makeOxygenBar(){
     this.player.body.setVelocity(0,0);
     this.showEndPanel(msg || "Game Over");
   }
-  showEndPanel(title){
+  showEndPanel(title, subtitle){
     const W=this.scale.width,H=this.scale.height;
     const dim = this.add.rectangle(W/2,H/2,W, H, 0x000000, 0.55).setScrollFactor(0).setDepth(100);
     const panel = this.add.rectangle(W/2,H/2, 680, 320, 0x071a2b, 0.95).setScrollFactor(0).setDepth(101);
-    this.add.text(W/2, H/2-90, title, { fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff"}).setOrigin(0.5).setScrollFactor(0).setDepth(102);
+    this.add.text(W/2, H/2-100, title, { fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff"}).setOrigin(0.5).setScrollFactor(0).setDepth(102);
+    if (subtitle){
+      this.add.text(W/2, H/2-56, subtitle, { fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff"})
+        .setOrigin(0.5).setScrollFactor(0).setDepth(102);
+    }
 
     const makeBtn = (txt, y, onClick)=>{
       const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(102).setInteractive({ useHandCursor:true });

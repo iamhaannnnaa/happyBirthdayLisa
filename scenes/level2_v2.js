@@ -1,5 +1,8 @@
 // scenes/level2.js
 const Phaser = window.Phaser;
+import { readAxis, startTouch, touchEnabled } from "./touch.js";
+import { markLevelDone } from "../progress.js";
+
 const DEBUG = false;
 
 /* === DEBUG: Level2 Version Marker (Safari-/Legacy-safe) === */
@@ -214,7 +217,7 @@ export default class Level2 extends Phaser.Scene {
     const escTxt = this.add.text(16, this.scale.height-10, "⟵ Menü (ESC)", {
       fontFamily:"system-ui, sans-serif", fontSize:"22px", color:"#a0c8ff",
       stroke:"#000", strokeThickness:3
-    }).setOrigin(0,1).setScrollFactor(0).setDepth(10000);
+    }).setOrigin(0,1).setScrollFactor(0).setDepth(10000).setVisible(!touchEnabled());
 
     // === NEU: Key-Overlay (Foto-Overlay-Stil aus L3) ===
     this.keyOverlay = this.makeKeyOverlay();
@@ -291,7 +294,14 @@ export default class Level2 extends Phaser.Scene {
       left:"LEFT", right:"RIGHT", up:"UP", down:"DOWN",
       a:"A", d:"D", w:"W", s:"S", e:"E", esc:"ESC", space:"SPACE"
     });
-    this.input.keyboard.on("keydown-ESC", ()=> this.scene.start("MenuScene"));
+
+    const toMenu = ()=> this.scene.start("MenuScene");
+    this.input.keyboard.on("keydown-ESC", toMenu);
+    this.game.events.on("touch-menu", toMenu);
+    this.events.once("shutdown", ()=> this.game.events.off("touch-menu", toMenu));
+
+    // Touch-Steuerung (nur auf Handy/Tablet sichtbar)
+    startTouch(this);
 
     if (DEBUG){
       this.add.text(16, 100, "DEBUG ON", {color:"#0f0"}).setScrollFactor(0).setDepth(10000);
@@ -362,10 +372,11 @@ export default class Level2 extends Phaser.Scene {
     }
 
     const speed = 300;
-    const ix = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
+    const kx = (this.keys.left.isDown || this.keys.a.isDown ? -1 : 0) +
                (this.keys.right.isDown|| this.keys.d.isDown ?  1 : 0);
-    const iy = (this.keys.up.isDown   || this.keys.w.isDown ? -1 : 0) +
+    const ky = (this.keys.up.isDown   || this.keys.w.isDown ? -1 : 0) +
                (this.keys.down.isDown || this.keys.s.isDown ?  1 : 0);
+    const { x: ix, y: iy } = readAxis(kx, ky);
 
     this.player.body.setAcceleration(ix*speed*2, iy*speed*2);
 
@@ -471,7 +482,8 @@ export default class Level2 extends Phaser.Scene {
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
     if (this.textures.exists("diver")) this.player.play("diver_idle");
-    this.showEndPanel("Level geschafft! 🎉");
+    markLevelDone("Level2");                     // schaltet Level 3 frei
+    this.showEndPanel("Level geschafft! 🎉", "Level 3 ist jetzt freigeschaltet.");
   }
 
   fail(msg){
@@ -482,12 +494,16 @@ export default class Level2 extends Phaser.Scene {
     this.showEndPanel(msg || "Game Over");
   }
 
-  showEndPanel(title){
+  showEndPanel(title, subtitle){
     const W=this.scale.width, H=this.scale.height;
     const dim   = this.add.rectangle(W/2,H/2,W,H,0x000000,0.55).setScrollFactor(0).setDepth(10000);
     const panel = this.add.rectangle(W/2,H/2,680,320,0x071a2b,0.95).setScrollFactor(0).setDepth(10001);
-    this.add.text(W/2,H/2-90,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
+    this.add.text(W/2,H/2-100,title,{ fontFamily:"system-ui", fontSize:"36px", color:"#e6f0ff",
       stroke:"#000", strokeThickness:4 }).setOrigin(0.5).setScrollFactor(0).setDepth(10002);
+    if (subtitle){
+      this.add.text(W/2,H/2-56,subtitle,{ fontFamily:"system-ui", fontSize:"22px", color:"#a0c8ff",
+        stroke:"#000", strokeThickness:3 }).setOrigin(0.5).setScrollFactor(0).setDepth(10002);
+    }
 
     const makeBtn = (txt, y, onClick)=>{
       const r=this.add.rectangle(W/2, y, 260, 56, 0x0d2e46, 1).setScrollFactor(0).setDepth(10002).setInteractive({ useHandCursor:true });
@@ -704,20 +720,22 @@ export default class Level2 extends Phaser.Scene {
     panel.setStrokeStyle(4, 0xaad4ff, 1);
 
     const story =
-`Willkommen in den **Limes-Thermen**!
+`Willkommen in den Limes-Thermen!
 
 Unter dir liegt ein altes Unterwasser-Labyrinth. Deine Mission:
-- **Finde Mama an der Kasse.** Sie gibt dir den ersten Schlüssel (**Tür D**).
-- Geh durch die geöffnete Tür und **suche Papa in der Sauna** – er hat den Schlüssel für den Ausgang (**Tür E**).
+- Finde Mama an der Kasse. Sie gibt dir den ersten Schlüssel (Tür D).
+- Geh durch die geöffnete Tür und suche Papa in der Sauna – er hat den Schlüssel für den Ausgang (Tür E).
 
-**Wichtig:**
-- Das Labyrinth ändert sich **nie** – der Aufbau ist immer gleich.
-- Dein **Sauerstoff ist knapp**. Beim ersten Mal reicht er oft nicht.
-  Mach das Labyrinth ein paarmal, **präge dir den richtigen Weg** – dann schaffst du es rechtzeitig.
+Wichtig:
+- Das Labyrinth ändert sich nie – der Aufbau ist immer gleich.
+- Dein Sauerstoff ist knapp. Beim ersten Mal reicht er oft nicht.
+  Mach das Labyrinth ein paarmal, präge dir den richtigen Weg – dann schaffst du es rechtzeitig.
 
-**Steuerung:** Pfeiltasten oder [WASD] bewegen · [ESC] Menü
+Steuerung: ${touchEnabled()
+  ? "Joystick unten links bewegt dich · „☰ Menü“ unten führt zurück"
+  : "Pfeiltasten oder [WASD] bewegen · [ESC] Menü"}
 
-Drücke **[LEERTASTE]**, um zu starten!`;
+${touchEnabled() ? "Tippe auf den Bildschirm, um zu starten!" : "Drücke [LEERTASTE], um zu starten!"}`;
 
     const txt = this.add.text(0, 0, story, {
       fontFamily:"system-ui, sans-serif",
