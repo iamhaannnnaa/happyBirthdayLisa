@@ -8,6 +8,68 @@ const Phaser = window.Phaser;
 export const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
 export const INK   = "#3f2d1c";
 
+// Baut einen Brief auf Pergament (wie in Level 2 und 3).
+// opts: { title, body, footer, hint, width, height }
+export function makeLetter(scene, opts){
+  const o = Object.assign({
+    title: "Liebe Lisa,", body: "", footer: "", hint: "", width: 760, height: 520
+  }, opts || {});
+  const W = scene.scale.width, H = scene.scale.height;
+  const zoom = (scene.cameras && scene.cameras.main && scene.cameras.main.zoom) || 1;
+
+  const cont = scene.add.container(W/2, H/2)
+    .setScrollFactor(0)
+    .setDepth(25000)
+    .setScale(1 / zoom)
+    .setVisible(false)
+    .setAlpha(0);
+
+  const dim = scene.add.rectangle(0, 0, W*2, H*2, 0x04141c, 0.72).setOrigin(0.5);
+
+  const paper = scene.textures.exists("parchment")
+    ? scene.add.image(0, 0, "parchment").setOrigin(0.5).setDisplaySize(o.width, o.height)
+    : scene.add.rectangle(0, 0, o.width, o.height, 0xe9dcbf, 1).setOrigin(0.5);
+  paper.setAngle(-1.1);
+
+  const head = scene.add.text(-o.width/2 + 64, -o.height/2 + 46, o.title, {
+    fontFamily: SERIF, fontSize: "34px", color: INK, fontStyle: "italic"
+  }).setOrigin(0, 0).setAngle(-1.1);
+
+  const txt = scene.add.text(-o.width/2 + 64, -o.height/2 + 112, o.body, {
+    fontFamily: SERIF, fontSize: "21px", color: INK, align: "left",
+    lineSpacing: 7, wordWrap: { width: o.width - 150 }
+  }).setOrigin(0, 0).setAngle(-1.1);
+
+  const parts = [dim, paper, head, txt];
+
+  if (o.footer){
+    parts.push(scene.add.text(-o.width/2 + 64, o.height/2 - 96, o.footer, {
+      fontFamily: SERIF, fontSize: "17px", color: "#6b5334", fontStyle: "italic"
+    }).setOrigin(0, 0).setAngle(-1.1));
+  }
+
+  // Siegel unten rechts
+  const sx = o.width/2 - 86, sy = o.height/2 - 74;
+  parts.push(scene.add.circle(sx, sy, 30, 0x8e2f2c, 1));
+  parts.push(scene.add.circle(sx, sy, 24, 0x000000, 0).setStrokeStyle(2, 0xb75a52, 0.9));
+  parts.push(scene.add.text(sx, sy, "H", {
+    fontFamily: SERIF, fontSize: "26px", color: "#f0cfc4"
+  }).setOrigin(0.5));
+
+  if (o.hint){
+    const hint = scene.add.text(0, o.height/2 + 44, o.hint, {
+      fontFamily: "system-ui, sans-serif", fontSize: "20px", color: "#cfe9ff"
+    }).setOrigin(0.5).setAlpha(0.85);
+    scene.tweens.add({ targets: hint, alpha: 0.35, duration: 900, yoyo: true, repeat: -1 });
+    parts.push(hint);
+  }
+
+  cont.add(parts);
+  cont._dim = dim;
+  cont._paper = paper;
+  return cont;
+}
+
 // Legt die Notiz an (unsichtbar). Position: oberes Drittel, damit sie
 // die Spielfigur nicht verdeckt.
 export function makeNote(scene, opts){

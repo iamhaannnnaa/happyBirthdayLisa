@@ -871,7 +871,7 @@ und wenn es voll ist, wartet Deine Überraschung.`;
    // Geschenk-Icon (klickbar)
 let icon;
 if (this.textures.exists("gift_icon")){
-  icon = this.add.image(0, 28, "gift_icon").setOrigin(0.5);
+  icon = this.add.image(0, 28, "gift_icon").setOrigin(0.5).setDisplaySize(190, 190);
   // Interaktiv + zuverlässige Klicks
   icon.setInteractive({ useHandCursor: true, pixelPerfect: true });
 

@@ -1,7 +1,8 @@
 // scenes/level1.js
 const Phaser = window.Phaser;
-import { readAxis, startTouch } from "./touch.js";
+import { readAxis, startTouch, touchEnabled } from "./touch.js";
 import { markLevelDone } from "../progress.js";
+import { makeLetter } from "./ui.js";
 
 const DEBUG = false;
 
@@ -28,6 +29,11 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
     // Münze + Drückerfisch
     this.load.image("coin", "assets/objects/coin2.png");
     this.load.image("triggerfish", "assets/objects/triggerfish.png?v=2");
+
+    // Pergament für den Brief am Anfang
+    if (!this.textures.exists("parchment")){
+      this.load.image("parchment", "assets/objects/level2/parchment.png");
+    }
 
     if (DEBUG){
       this.load.on("loaderror", (f)=>console.warn("[LOAD ERROR]", f?.key, f?.src));
@@ -98,7 +104,7 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
 
     this.oxyBar = this.makeOxygenBar();
     this.time.addEvent({ delay: 1000, loop: true, callback: ()=> {
-      if (this.gameOver) return;
+      if (this.gameOver || this.introOpen) return;   // Brief pausiert die Uhr
       this.oxygen = Math.max(0, this.oxygen-1);
       this.updateOxygenBar();
       if (this.oxygen<=0) this.fail("Keine Luft mehr!");
@@ -117,13 +123,77 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
     // Touch-Steuerung (nur auf Handy/Tablet sichtbar)
     startTouch(this);
 
+    // Brief am Anfang (einmalig pro Gerät)
+    this.showIntroLetter();
+
     // Debug Toggle (nur wenn DEBUG an ist – "D" ist sonst eine Bewegungstaste!)
     this._dbgGfx=null;
     if (DEBUG) this.input.keyboard.on("keydown-D", ()=> this.drawDebug());
   }
 
+  // ---- Brief zum Einstieg ----
+  showIntroLetter(){
+    const KEY = "l1_intro_seen_v1";
+    this.introOpen = false;
+
+    let seen = false;
+    try { seen = localStorage.getItem(KEY) === "1"; } catch(e){}
+    if (seen) return;
+
+    const brief =
+`Dein erster Tauchgang! Unter Dir liegen die alten Limes-Ruinen,
+und zwischen den Säulen glitzern acht Goldmünzen.
+
+Sammle alle acht ein, bevor Dir die Luft ausgeht. Oben rechts
+siehst Du, wie viel Sauerstoff Du noch hast.
+
+Und pass auf die Drückerfische auf – sie sind klein, aber wer
+einen rammt, verliert Luft.`;
+
+    this.intro = makeLetter(this, {
+      body: brief,
+      footer: touchEnabled()
+        ? "Joystick rechts bewegt Dich · „☰ Menü“ unten führt zurück"
+        : "Pfeiltasten oder [WASD] bewegen · [ESC] Menü",
+      hint: touchEnabled() ? "Tippe auf den Bildschirm, um loszutauchen" : "[Leertaste] zum Starten"
+    });
+
+    this.introOpen = true;
+    this.intro.setVisible(true);
+    this.tweens.add({ targets: this.intro, alpha: 1, duration: 160, ease: "Quad.easeOut" });
+
+    const close = ()=>{
+      if (!this.introOpen) return;
+      this.introOpen = false;
+      try { localStorage.setItem(KEY, "1"); } catch(e){}
+      this.tweens.add({
+        targets: this.intro, alpha: 0, duration: 180, ease: "Quad.easeIn",
+        onComplete: ()=> this.intro.setVisible(false)
+      });
+    };
+
+    // Sperrzeit: Das Loslassen des Fingers vom Menü-Knopf soll den Brief
+    // nicht sofort wieder schließen.
+    const armedAt = performance.now() + 400;
+    const tapClose = ()=> { if (performance.now() >= armedAt) close(); };
+    this.intro.setInteractive(
+      new Phaser.Geom.Rectangle(-9999,-9999,19999,19999), Phaser.Geom.Rectangle.Contains
+    );
+    this.intro.on("pointerdown", tapClose);
+    this.intro.on("pointerup",   tapClose);
+    this.input.keyboard.once("keydown-SPACE", close);
+  }
+
   update(t, dt){
     if (this.gameOver) return;
+
+    this.updateFish(dt || 16);
+
+    // Brief offen? Dann steht das Spiel still.
+    if (this.introOpen){
+      this.player.body.setVelocity(0,0);
+      return;
+    }
 
     this.bubbles.iterate(c => c.update && c.update());
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
@@ -162,21 +232,41 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
     const W=1920, H=1080;
     this.coins = this.physics.add.group({ allowGravity:false, immovable:true });
 
-    const margin = 40;
+    const margin = 60;
     const bounds = { x: margin, y: margin, w: W - margin*2, h: H - margin*2 };
+    // Flächen, auf denen keine Münze liegen soll: Startpunkt, Münzzähler,
+    // Sauerstoffleiste, Joystick und Menü-Knopf.
     const avoids = [
-      { x: W*0.12, y: H*0.45, w: 420, h: 300 },
-      { x: 0,      y: 0,      w: 360, h: 120 }
+      { x: W*0.12,  y: H*0.45,  w: 420, h: 300 },
+      { x: 0,       y: 0,       w: 380, h: 130 },
+      { x: W - 440, y: 0,       w: 440, h: 150 },
+      { x: W - 470, y: H - 470, w: 470, h: 470 },
+      { x: W/2-230, y: H - 150, w: 460, h: 150 }
     ];
 
     const positions = this.distributePoints({
       count: this.totalCoins, minDist: 220, bounds, avoids
     });
 
-    positions.forEach(([x,y])=>{
-      const c = this.coins.create(x,y,"coin").setScale(0.09);
+    // Zielgröße in Pixeln statt fester Skalierung – so bleibt die Münze
+    // gleich groß, egal wie groß die Bilddatei ist.
+    const COIN_PX = 104;
+    const tex = this.textures.get("coin").getSourceImage();
+    const coinScale = (tex && tex.width) ? COIN_PX / tex.width : 0.09;
+
+    positions.forEach(([x,y], i)=>{
+      const c = this.coins.create(x,y,"coin").setScale(coinScale);
       c.setAlpha(0.95);
-      this.tweens.add({ targets:c, y:y-12, duration:1200, yoyo:true, repeat:-1, ease:"sine.inOut" });
+      // Schweben
+      this.tweens.add({
+        targets:c, y:y-14, duration:1200, yoyo:true, repeat:-1,
+        ease:"sine.inOut", delay: i*120
+      });
+      // Drehen: die Münze wird schmal und wieder breit
+      this.tweens.add({
+        targets:c, scaleX: coinScale*0.22, duration:1300, yoyo:true, repeat:-1,
+        ease:"sine.inOut", delay: 300 + i*160
+      });
     });
 
     this.physics.add.overlap(this.player, this.coins, (_p, coin)=> this.collectCoin(coin));
@@ -209,36 +299,66 @@ this.load.spritesheet("diver", "assets/sprites/diver_v4_1920x1920.png", {
       count: fishCount, minDist: 320, bounds, avoids
     });
 
+    this.fishList = [];
+
     fishPos.forEach(([x,y],i)=>{
       const f = this.fishGroup.create(x,y,"triggerfish").setAlpha(0.95);
 
       const targetW = 250;   // Breite in px → kleine Fische
       const baseW   = f.width;
-      const scale   = targetW / baseW;
-      f.setScale(scale);
+      f.setScale(targetW / baseW);
 
-      const bw = f.displayWidth*0.90, bh = f.displayHeight*0.85;
+      const bw = f.displayWidth*0.78, bh = f.displayHeight*0.70;
       f.body.setSize(bw, bh).setOffset((f.displayWidth-bw)/2,(f.displayHeight-bh)/2);
 
-      const mode = Phaser.Math.Between(0,2);
-      const rx   = Phaser.Math.Between(140, 260);
-      const ry   = Phaser.Math.Between(120, 220);
-      const dur  = Phaser.Math.Between(2200, 3200);
-      const ang  = (mode===0 ? 6 : mode===1 ? 0 : 4) * (i%2?-1:1);
-      const target = {
-        x: x + (mode!==1 ? (i%2?-rx:rx) : 0),
-        y: y + (mode!==0 ? (i%2?-ry:ry) : 0)
-      };
+      // Zustand fürs freie Umherschwimmen (siehe updateFish)
+      f.dir       = Phaser.Math.FloatBetween(0, Math.PI*2);
+      f.targetDir = f.dir;
+      f.speed     = Phaser.Math.FloatBetween(38, 62);
+      f.turnTimer = Phaser.Math.FloatBetween(0.4, 2.4);
+      f.bobPhase  = Phaser.Math.FloatBetween(0, Math.PI*2);
+      f.bobSpeed  = Phaser.Math.FloatBetween(1.6, 2.6);
+      f.bobAmp    = Phaser.Math.FloatBetween(10, 22);
 
-      this.tweens.add({
-        targets: f,
-        x: target.x, y: target.y, angle: ang,
-        duration: dur, yoyo: true, repeat: -1, ease: "sine.inOut",
-        onUpdate: () => { f.setFlipX(f.body.velocity.x < 0); }
-      });
+      this.fishList.push(f);
     });
 
     this.physics.add.overlap(this.player, this.fishGroup, ()=> this.hitTriggerfish());
+  }
+
+  // Fische schwimmen frei umher: sanfte Kurven, leichtes Auf und Ab,
+  // Wenden am Rand. Vorher liefen sie stur auf einer Linie hin und her.
+  updateFish(dt){
+    if (!this.fishList) return;
+    const W = 1920, H = 1080, margin = 130;
+    const s = Math.min(dt, 50) / 1000;
+
+    for (const f of this.fishList){
+      if (!f.active || !f.body) continue;
+
+      // ab und zu eine neue Wunschrichtung
+      f.turnTimer -= s;
+      if (f.turnTimer <= 0){
+        f.targetDir = f.dir + Phaser.Math.FloatBetween(-1.1, 1.1);
+        f.turnTimer = Phaser.Math.FloatBetween(1.6, 3.4);
+      }
+
+      // am Rand sanft zur Mitte drehen
+      if (f.x < margin || f.x > W - margin || f.y < margin || f.y > H - margin){
+        f.targetDir = Math.atan2(H/2 - f.y, W/2 - f.x);
+      }
+
+      // weich einlenken statt hart umschalten
+      f.dir = Phaser.Math.Angle.RotateTo(f.dir, f.targetDir, 1.4 * s);
+
+      f.bobPhase += f.bobSpeed * s;
+      const vx = Math.cos(f.dir) * f.speed;
+      const vy = Math.sin(f.dir) * f.speed + Math.sin(f.bobPhase) * f.bobAmp;
+
+      f.body.setVelocity(vx, vy);
+      f.setFlipX(vx > 0);                                  // Bild schaut nach links
+      f.setAngle(Phaser.Math.RadToDeg(Math.atan2(vy, Math.max(Math.abs(vx), 12))) * 0.4);
+    }
   }
 
   hitTriggerfish(){
