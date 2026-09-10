@@ -39,7 +39,8 @@ export default class Level3 extends Phaser.Scene {
 
     // >>> NEU: Geschenk-Assets (deine Pfade & Namen)
     this.load.image("gift_icon",   "assets/objects/Gift.png");
-    this.load.image("gift_reward", "assets/objects/Opfer.jpg");
+    this.load.image("gift_reward", "assets/objects/Opfer.jpg");   // der Gag
+    this.load.image("gift_lamp",   "assets/objects/level3/lampe.png");  // das echte Geschenk
   }
 
   create(){
@@ -120,6 +121,9 @@ export default class Level3 extends Phaser.Scene {
       this.game.events.off("touch-menu", toMenu);
       this.game.events.off("touch-action", onTouchAction);
       this.game.events.off("touch-book", onTouchBook);
+      // falls das Geschenk noch offen war: Knöpfe wieder sichtbar machen
+      const ts = this.scene.get("TouchScene");
+      if (ts) ts.scene.setVisible(true);
     });
     startTouch(this, { action:true, label:"📷", book:true });
 
@@ -847,130 +851,202 @@ und wenn es voll ist, wartet Deine Überraschung.`;
       .setDepth(26000)
       .setVisible(false)
       .setAlpha(0)
-      .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
+      .setScale(1 / (this.cameras.main.zoom || 1));
 
-    const dim = this.add.rectangle(0,0, W*2,H*2, 0x000000, 0.6).setOrigin(0.5);
+    const dim = this.add.rectangle(0,0, W*2,H*2, 0x04141c, 0.78).setOrigin(0.5);
 
-    const panelW = Math.min(620, W*0.9);
-    const panelH = Math.min(360, H*0.85);
-    const panel  = this.add.rectangle(0,0, panelW, panelH, 0xffffff, 1).setOrigin(0.5);
-    panel.setStrokeStyle(4, 0xaad4ff, 1);
+    const panelW = 720, panelH = 470;
+    const paper = this.textures.exists("parchment")
+      ? this.add.image(0, 0, "parchment").setOrigin(0.5).setDisplaySize(panelW, panelH)
+      : this.add.rectangle(0, 0, panelW, panelH, 0xe9dcbf, 1).setOrigin(0.5);
+    paper.setAngle(-1.1);
 
-    const msg =
-`Du hast das Spiel durchgespielt!
-Öffne jetzt dein Geschenk.`;
+    const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+    const INK   = "#3f2d1c";
 
-    const txt = this.add.text(0, -panelH*0.25, msg, {
-      fontFamily:"system-ui, sans-serif",
-      fontSize:"24px",
-      color:"#103a5c",
-      align:"center",
-      wordWrap:{ width: panelW - 60 }
-    }).setOrigin(0.5);
+    const head = this.add.text(0, -panelH/2 + 52, "Alle zwölf gefunden!", {
+      fontFamily: SERIF, fontSize: "34px", color: INK, fontStyle: "italic"
+    }).setOrigin(0.5, 0).setAngle(-1.1);
 
-   // Geschenk-Icon (klickbar)
-let icon;
-if (this.textures.exists("gift_icon")){
-  icon = this.add.image(0, 28, "gift_icon").setOrigin(0.5).setDisplaySize(190, 190);
-  // Interaktiv + zuverlässige Klicks
-  icon.setInteractive({ useHandCursor: true, pixelPerfect: true });
+    const txt = this.add.text(0, -panelH/2 + 108,
+      "Dein Logbuch ist voll, Lisa.\nZeit, Dein Geschenk aufzumachen.", {
+      fontFamily: SERIF, fontSize: "22px", color: INK, align: "center", lineSpacing: 6
+    }).setOrigin(0.5, 0).setAngle(-1.1);
 
-  // sanfter Bounce
-  const bounce = this.tweens.add({
-    targets: icon,
-    y: icon.y - 6,
-    yoyo: true, repeat: -1, duration: 900, ease: "Sine.inOut"
-  });
+    // Geschenk zum Antippen
+    const icon = this.textures.exists("gift_icon")
+      ? this.add.image(0, 74, "gift_icon").setOrigin(0.5).setDisplaySize(170, 170)
+      : this.add.rectangle(0, 74, 150, 150, 0xff2d55, 1).setStrokeStyle(6, 0xffffff, 1);
 
-  // >>> Öffnen bei pointerdown (robuster auf Mobile)
-  icon.on("pointerdown", () => this.openRewardImage());
+    const bounce = this.tweens.add({
+      targets: icon, y: icon.y - 8, yoyo: true, repeat: -1, duration: 900, ease: "Sine.inOut"
+    });
 
-  // Optional: während Hover/Tap Animation pausieren, damit nichts “wegrutscht”
-  icon.on("pointerover", () => bounce.pause());
-  icon.on("pointerout",  () => bounce.resume());
-} else {
-  // Fallback
-  icon = this.add.rectangle(0, 28, 140, 140, 0xff2d55, 1)
-    .setStrokeStyle(6, 0xffffff, 1)
-    .setInteractive({ useHandCursor:true });
-  this.add.text(0, 28, "GESCHENK", {
-    fontFamily:"system-ui", fontSize:"18px", color:"#ffffff"
-  }).setOrigin(0.5);
-  icon.on("pointerdown", () => this.openRewardImage());
-}
+    const hint = this.add.text(0, panelH/2 - 40, "Tippe auf das Geschenk", {
+      fontFamily: SERIF, fontSize: "19px", color: "#6b5334", fontStyle: "italic"
+    }).setOrigin(0.5).setAngle(-1.1);
 
-// >>> Bonus: Klick aufs Panel (oder Text) öffnet ebenfalls das Geschenk
-panel.setInteractive({ useHandCursor:true });
-panel.on("pointerdown", () => this.openRewardImage());
-txt.setInteractive({ useHandCursor:true });
-txt.on("pointerdown", () => this.openRewardImage());
+    cont.add([dim, paper, head, txt, icon, hint]);
 
-const hint = this.add.text(0, panelH*0.30 - 16, "Tippe/klicke auf das Geschenk", {
-  fontFamily:"system-ui, sans-serif", fontSize:"16px", color:"#355e7a"
-}).setOrigin(0.5);
+    // Große Klickfläche über dem Geschenk – unabhängig vom Kamera-Zoom
+    // Wichtig: scrollFactor 0, sonst rechnet Phaser die Trefferfläche mit dem
+    // Kamera-Scroll um und der Tipper geht ins Leere.
+    const zone = this.add.zone(0, 74, 300, 300)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
+    const oeffnen = ()=>{
+      if (this.rewardLayer) return;
+      bounce.pause();
+      this.openRewardImage();
+    };
+    zone.on("pointerdown", oeffnen);
+    cont.add(zone);
 
-cont.add([dim, panel, txt, icon, hint]);
+    // Sicherheitsnetz: Tippen irgendwo auf das Geschenk-Feld zählt auch dann,
+    // wenn die Trefferfläche wegen Kamera-Zoom verrutscht.
+    this.input.on("pointerdown", (p)=>{
+      if (!cont.visible || this.rewardLayer) return;
+      const cx = this.scale.width/2, cy = this.scale.height/2 + 74;
+      if (Math.abs(p.x - cx) <= 170 && Math.abs(p.y - cy) <= 170) oeffnen();
+    });
 
-    cont._dim = dim; cont._panel = panel;
+    cont._dim = dim;
     return cont;
   }
 
-  openRewardImage(){
-    if (!this.rewardLayer){
-      const W = this.scale.width, H = this.scale.height;
-      const lay = this.add.container(W/2, H/2)
-        .setScrollFactor(0)
-        .setDepth(27000)
-        .setVisible(false)
-        .setAlpha(0)
-        .setScale(1 / (this.cameras.main.zoom || 1));   // Kamera-Zoom herausrechnen
-
-      const dim = this.add.rectangle(0,0, W*2,H*2, 0x000000, 0.85).setOrigin(0.5).setInteractive();
-
-      let img;
-      if (this.textures.exists("gift_reward")){
-        img = this.add.image(0,0,"gift_reward").setOrigin(0.5);
-        const tex = this.textures.get("gift_reward").getSourceImage();
-        const maxW = W * 0.9, maxH = H * 0.9;
-        const sw = tex ? maxW / tex.width : 1;
-        const sh = tex ? maxH / tex.height: 1;
-        img.setScale(Math.min(sw, sh, 1));
-      } else {
-        img = this.add.text(0,0,"[Geschenkbild fehlt]", {
-          fontFamily:"system-ui", fontSize:"28px", color:"#ffffff"
-        }).setOrigin(0.5);
-      }
-
-      const close = ()=>{
-        this.tweens.add({
-          targets: lay, alpha:0, duration:180, ease:"Quad.easeIn",
-          onComplete: ()=>{
-            lay.setVisible(false);
-            this.bookOpen = false;
-            this.physics.world.resume();
-          }
-        });
-      };
-      // Schließen per Klick/Touch
-      dim.on("pointerup", close);
-      img.setInteractive({ useHandCursor:true });
-      img.on("pointerup", close);
-
-      lay.add([dim, img]);
-      lay._dim = dim; lay._img = img;
-      this.rewardLayer = lay;
-    }
-
-    // Geschenk-Overlay ausblenden
-    if (this.giftOverlay){
-      this.tweens.add({
-        targets: this.giftOverlay, alpha:0, duration:140, ease:"Quad.easeIn",
-        onComplete: ()=> this.giftOverlay.setVisible(false)
-      });
-    }
-
-    // Reward zeigen
-    this.rewardLayer.setVisible(true).setAlpha(0);
-    this.tweens.add({ targets:this.rewardLayer, alpha:1, duration:180, ease:"Quad.easeOut" });
+  // weicher Lichtschein – der Kater hält ja eine Lampe
+  makeGlowTexture(key, size){
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, size, size);
+    const ctx = tex.getContext();
+    const g = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    g.addColorStop(0.00, "rgba(255, 226, 168, 0.95)");
+    g.addColorStop(0.25, "rgba(255, 200, 120, 0.55)");
+    g.addColorStop(0.55, "rgba(255, 170, 80, 0.22)");
+    g.addColorStop(1.00, "rgba(255, 160, 60, 0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    tex.refresh();
   }
+
+  openRewardImage(){
+    const W = this.scale.width, H = this.scale.height;
+    const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+
+    // Jedes Mal frisch aufbauen, damit die Enthüllung von vorne läuft
+    if (this.rewardLayer){ this.rewardLayer.destroy(); this.rewardLayer = null; }
+
+    const lay = this.add.container(W/2, H/2)
+      .setScrollFactor(0)
+      .setDepth(27000)
+      .setAlpha(0)
+      .setScale(1 / (this.cameras.main.zoom || 1));
+
+    const dim = this.add.rectangle(0, 0, W*2, H*2, 0x03090e, 0.985).setOrigin(0.5);
+    lay.add(dim);
+
+    // ---------- Teil 1: der Gag ----------
+    const gagGroup = this.add.container(0, 0);
+    const gagTitle = this.add.text(0, -H*0.30, "Dein Geschenk ist …", {
+      fontFamily: SERIF, fontSize: "40px", color: "#f2e4c8", fontStyle: "italic"
+    }).setOrigin(0.5);
+    gagGroup.add(gagTitle);
+
+    if (this.textures.exists("gift_reward")){
+      const gag = this.add.image(0, 30, "gift_reward").setOrigin(0.5);
+      const src = this.textures.get("gift_reward").getSourceImage();
+      const sc = Math.min((W*0.62) / src.width, (H*0.52) / src.height, 2.2);
+      gag.setScale(sc);
+      gagGroup.add(gag);
+    }
+    lay.add(gagGroup);
+
+    // ---------- Teil 2: die Lampe ----------
+    const lampGroup = this.add.container(0, 0).setAlpha(0);
+    this.makeGlowTexture("warm_glow", 512);
+    const glow = this.add.image(0, 20, "warm_glow")
+      .setDisplaySize(900, 900)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(0.85);
+    lampGroup.add(glow);
+    this.tweens.add({ targets: glow, alpha: 0.62, scale: glow.scale*1.06,
+                      duration: 2200, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+
+    if (this.textures.exists("gift_lamp")){
+      const lamp = this.add.image(0, 26, "gift_lamp").setOrigin(0.5);
+      const src = this.textures.get("gift_lamp").getSourceImage();
+      const sc = Math.min((W*0.52) / src.width, (H*0.74) / src.height);
+      lamp.setScale(sc);
+      lampGroup.add(lamp);
+    }
+
+    const lampTitle = this.add.text(0, -H*0.40, "Alles Gute, Lisa!", {
+      fontFamily: SERIF, fontSize: "46px", color: "#ffe9c2", fontStyle: "italic",
+      stroke: "#2a1608", strokeThickness: 6
+    }).setOrigin(0.5);
+    const lampSub = this.add.text(0, H*0.365, "Eine Lampe – von Hand gedruckt, nur für Dich.", {
+      fontFamily: SERIF, fontSize: "24px", color: "#f0dcb8",
+      stroke: "#2a1608", strokeThickness: 4
+    }).setOrigin(0.5);
+    lampGroup.add([lampTitle, lampSub]);
+    lay.add(lampGroup);
+
+    this.rewardLayer = lay;
+
+    // Steuerung anhalten
+    this.bookOpen = true;
+    this.physics.world.pause();
+    this.player.setVelocity(0,0);
+
+    // Alles andere aus dem Weg – das Geschenk soll allein wirken
+    if (this.giftOverlay) this.giftOverlay.setVisible(false);
+    if (this.uiRoot) this.uiRoot.setVisible(false);
+    const touchScene = this.scene.get("TouchScene");
+    if (touchScene && touchScene.scene.isActive()) touchScene.scene.setVisible(false);
+
+    // Einblenden, Gag stehen lassen, dann überblenden
+    this.tweens.add({ targets: lay, alpha: 1, duration: 260, ease: "Quad.easeOut" });
+
+    let umgeblendet = false;
+    const zumGeschenk = ()=>{
+      if (umgeblendet) return;      // nur einmal, egal welcher Timer zuerst kommt
+      umgeblendet = true;
+      this.tweens.add({ targets: gagGroup, alpha: 0, duration: 500, ease: "Quad.easeIn" });
+      this.tweens.add({ targets: lampGroup, alpha: 1, duration: 700, delay: 300, ease: "Quad.easeOut",
+        onComplete: ()=> {
+          // erst jetzt lässt sich das Bild wegtippen (Szenen-Ebene, damit der
+          // Kamera-Zoom die Trefferfläche nicht verschiebt)
+          this.input.once("pointerdown", ()=> this.closeReward());
+        }
+      });
+    };
+
+    // 5 Sekunden Gag – unabhängig von Phasers Uhr, damit es sicher weitergeht
+    const startedAt = performance.now();
+    const warten = () => {
+      if (performance.now() - startedAt >= 5000) zumGeschenk();
+      else this.time.delayedCall(200, warten);
+    };
+    this.time.delayedCall(200, warten);
+    // Notbremse, falls die Szenen-Uhr klemmt
+    setTimeout(zumGeschenk, 5200);
+  }
+
+  closeReward(){
+    if (!this.rewardLayer) return;
+    const lay = this.rewardLayer;
+    this.rewardLayer = null;
+    this.tweens.add({
+      targets: lay, alpha: 0, duration: 300, ease: "Quad.easeIn",
+      onComplete: ()=> lay.destroy()
+    });
+    if (this.giftOverlay) this.giftOverlay.setVisible(false);
+    if (this.uiRoot) this.uiRoot.setVisible(true);
+    const touchScene = this.scene.get("TouchScene");
+    if (touchScene && touchScene.scene.isActive()) touchScene.scene.setVisible(true);
+    this.bookOpen = false;
+    this.physics.world.resume();
+  }
+
+
 }

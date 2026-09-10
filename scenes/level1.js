@@ -159,12 +159,16 @@ einen rammt, verliert Luft.`;
     });
 
     this.introOpen = true;
+    this.physics.world.pause();
+    (this.idleTweens || []).forEach(t => t.pause());
     this.intro.setVisible(true);
     this.tweens.add({ targets: this.intro, alpha: 1, duration: 160, ease: "Quad.easeOut" });
 
     const close = ()=>{
       if (!this.introOpen) return;
       this.introOpen = false;
+      this.physics.world.resume();
+      (this.idleTweens || []).forEach(t => t.resume());
       try { localStorage.setItem(KEY, "1"); } catch(e){}
       this.tweens.add({
         targets: this.intro, alpha: 0, duration: 180, ease: "Quad.easeIn",
@@ -187,13 +191,13 @@ einen rammt, verliert Luft.`;
   update(t, dt){
     if (this.gameOver) return;
 
-    this.updateFish(dt || 16);
-
-    // Brief offen? Dann steht das Spiel still.
+    // Brief offen? Dann steht wirklich alles still.
     if (this.introOpen){
       this.player.body.setVelocity(0,0);
       return;
     }
+
+    this.updateFish(dt || 16);
 
     this.bubbles.iterate(c => c.update && c.update());
     if (this.ca){ this.ca.tilePositionX += 0.06 * dt; this.ca.tilePositionY += 0.03 * dt; }
@@ -254,19 +258,20 @@ einen rammt, verliert Luft.`;
     const tex = this.textures.get("coin").getSourceImage();
     const coinScale = (tex && tex.width) ? COIN_PX / tex.width : 0.09;
 
+    this.idleTweens = this.idleTweens || [];
     positions.forEach(([x,y], i)=>{
       const c = this.coins.create(x,y,"coin").setScale(coinScale);
       c.setAlpha(0.95);
       // Schweben
-      this.tweens.add({
+      this.idleTweens.push(this.tweens.add({
         targets:c, y:y-14, duration:1200, yoyo:true, repeat:-1,
         ease:"sine.inOut", delay: i*120
-      });
+      }));
       // Drehen: die Münze wird schmal und wieder breit
-      this.tweens.add({
+      this.idleTweens.push(this.tweens.add({
         targets:c, scaleX: coinScale*0.22, duration:1300, yoyo:true, repeat:-1,
         ease:"sine.inOut", delay: 300 + i*160
-      });
+      }));
     });
 
     this.physics.add.overlap(this.player, this.coins, (_p, coin)=> this.collectCoin(coin));

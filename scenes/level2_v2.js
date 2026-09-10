@@ -345,8 +345,8 @@ export default class Level2 extends Phaser.Scene {
       this.openDoor("door1"); // Tür D
 
       // kleine HUD-Info + Overlay im L3-Stil
-      this.showKeyOverlay(["Mama gibt dir den goldenen Schlüssel.",
-                           "Die goldene Tür ist offen!"], "key_gold");
+      this.showKeyOverlay(["Mama gibt Dir den Schlüssel für die erste Tür.",
+                           "Die erste Tür ist offen!"], "key_gold");
       this.lightUpKey("keyMom");
 
       this.updateUI();
@@ -358,8 +358,8 @@ export default class Level2 extends Phaser.Scene {
       npc.setData("gaveKey", true);
       this.openDoor("door2"); // Tür E
 
-      this.showKeyOverlay(["Papa gibt dir den roten Schlüssel.",
-                           "Die rote Tür ist offen!"], "key_silver");
+      this.showKeyOverlay(["Papa gibt Dir den Schlüssel für die zweite Tür.",
+                           "Die zweite Tür ist offen!"], "key_silver");
       this.lightUpKey("keyDad");
 
       this.updateUI();
@@ -385,7 +385,7 @@ export default class Level2 extends Phaser.Scene {
     if (this.haveMomKey && this.haveDadKey){
       this.win();
     } else {
-      this.showInfo("Die Ausgangstür öffnet sich erst mit beiden Schlüsseln (D & E).");
+      this.showInfo("Der Ausgang geht erst auf, wenn Du beide Schlüssel hast.");
     }
   }
 
@@ -808,15 +808,16 @@ export default class Level2 extends Phaser.Scene {
     }).setOrigin(0, 0).setAngle(-1.1);
 
     const brief =
-`wenn Du das hier liest, bist Du schon tief unten in den alten
-Limes-Thermen. Ich habe Dir aufgeschrieben, was Du wissen musst.
+`Du bist tief unten in den alten Limes-Thermen.
+Hier steht, was Du wissen musst:
 
-Mama wartet vorne an der Kasse – sie hat den goldenen Schlüssel.
-Papa sitzt weiter hinten in der Sauna, bei ihm liegt der rote.
-Der Ausgang öffnet sich erst, wenn Du beide hast.
+Mama wartet vorne an der Kasse. Sie hat den
+Schlüssel für die erste Tür.
+Papa sitzt hinten in der Sauna. Bei ihm liegt
+der Schlüssel für die zweite Tür.
 
-Das Labyrinth ändert sich nie. Und behalte Deine Luft im Auge:
-Sauerstoff und Schlüssel schweben über Deinem Kopf.`;
+Der Ausgang geht erst auf, wenn Du beide hast.
+Sauerstoff und Schlüssel schweben über Dir.`;
 
     const txt = this.add.text(-panelW/2 + 64, -panelH/2 + 108, brief, {
       fontFamily: SERIF, fontSize: "21px", color: INK, align: "left",
