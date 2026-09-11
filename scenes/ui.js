@@ -223,11 +223,15 @@ export function showNote(scene, cont, text, opts){
 }
 
 // Einheitlicher Abschluss-Bildschirm für alle Level.
-// opts: { titel, untertitel, video:[urls] , next:"SzenenName", nextLabel:"Level 3 – …" }
-// Knöpfe: [▶ Erinnerung ansehen] [Weiter zu …] [Zum Menü]
-// „Nochmal“ gibt es bewusst nicht – wer neu anfangen will, geht übers Menü.
+// opts: { titel, untertitel, video:[urls] , next:"SzenenName", nextLabel:"Level 3 – …",
+//         retry:true }
+// Geschafft: [▶ Erinnerung ansehen] [Weiter zu …] [Zum Menü]
+// Nicht geschafft (retry:true): [Nochmal versuchen] [Zum Menü]
+// „Nochmal“ gibt es also nur beim Scheitern – wer es geschafft hat,
+// braucht das Level nicht noch einmal zu spielen.
 export function makeEndPanel(scene, opts){
-  const o = Object.assign({ titel:"", untertitel:"", video:null, next:null, nextLabel:"" }, opts || {});
+  const o = Object.assign({ titel:"", untertitel:"", video:null, next:null,
+                            nextLabel:"", retry:false }, opts || {});
   const W = scene.scale.width, H = scene.scale.height;
 
   // Bedienknöpfe des Levels ausblenden
@@ -235,6 +239,7 @@ export function makeEndPanel(scene, opts){
   if (ts && ts.scene.isVisible()) ts.scene.setVisible(false);
 
   const knopfListe = [];
+  if (o.retry) knopfListe.push({ txt:"↻  Nochmal versuchen", art:"retry" });
   if (o.video) knopfListe.push({ txt:"▶  Erinnerung ansehen", art:"video" });
   if (o.next)  knopfListe.push({ txt: o.nextLabel ? `Weiter zu ${o.nextLabel}` : "Weiter", art:"next" });
   knopfListe.push({ txt:"Zum Menü", art:"menu" });
@@ -274,6 +279,9 @@ export function makeEndPanel(scene, opts){
       if (k.art === "video"){
         lay.setVisible(false);
         zeigeVideo(scene, o.video, ()=> lay.setVisible(true));
+      } else if (k.art === "retry"){
+        lay.destroy();
+        scene.scene.restart();
       } else if (k.art === "next"){
         scene.scene.start(o.next);
       } else {
