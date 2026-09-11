@@ -21,14 +21,14 @@ export const FRAGEN = [
     antworten: ["Costa Rica", "Mexiko", "Brasilien"],
     richtig: 0,
     foto: "memo_mexiko_flughafen",
-    notiz: "Costa Rica. Zwei kleine Mädchen und eine ganze Nationalmannschaft."
+    notiz: "Costa Rica! Auf dem Weg zur WM in Deutschland."
   },
   {
     frage: "Welches Neujahr haben wir auf Hawaii gefeiert?",
     antworten: ["07/08", "06/07", "08/09"],
     richtig: 0,
     foto: "memo_hawaii_silvester",
-    notiz: "Silvester 07/08 auf Hawaii. Luftballons, Papierhüte und viel zu lange wach."
+    notiz: "Silvester auf Hawaii. Wir durften aufbleiben, bis wirklich nichts mehr ging."
   },
   {
     frage: "Welche Sprache stand außer Englisch auf dem Schild am Kap der Guten Hoffnung?",
@@ -42,7 +42,7 @@ export const FRAGEN = [
     antworten: ["Vakarufalhi", "Vilamendhoo", "Ellaidhoo"],
     richtig: 0,
     foto: null,                       // Bild kommt noch
-    notiz: "Vakarufalhi – die erste von vielen Inseln."
+    notiz: "Vakarufalhi – die erste von vielen Inseln. Und Mama und Papa sind\nnachgereist und haben uns überrascht."
   },
   {
     frage: "Findest Du Hanna cool?",
@@ -50,7 +50,7 @@ export const FRAGEN = [
     richtig: 0,
     flieht: [1],                      // „Nein“ schwimmt weg und ist nie wählbar
     foto: "memo_wir_klein",
-    notiz: "Kleine Schwester, große Schwester. Daran hat sich nichts geändert."
+    notiz: "Find ich ja nett, dass Du das endlich mal zugibst 😄"
   },
   {
     frage: "Von wann ist dieses Bild?",
@@ -58,7 +58,7 @@ export const FRAGEN = [
     richtig: 0,
     frageFoto: "frage_schwestern_2013",   // Ausschnitt ohne Datum
     foto: "memo_schwestern_2013",          // volles Bild mit Datum
-    notiz: "11. September 2013 – das Datum steht unten rechts im Bild."
+    notiz: "11. September 2013. Das war so lange eines meiner Lieblingsbilder."
   }
 ];
 

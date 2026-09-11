@@ -37,7 +37,7 @@ export function readAxis(keyX, keyY){
 // sichtbare Symbol. Diese Szene hat keinen Zoom – hier stimmt beides.
 export function startTouch(scene, opts){
   TOUCH.x = 0; TOUCH.y = 0; TOUCH.active = false;
-  const o = Object.assign({ action:false, label:"FOTO", book:false }, opts || {});
+  const o = Object.assign({ action:false, label:"FOTO", action2:false, label2:"", book:false }, opts || {});
   const touch = touchEnabled();
 
   // Ohne Touchscreen wird die Szene nur gebraucht, wenn es feste
@@ -89,30 +89,41 @@ export default class TouchScene extends Phaser.Scene {
       stroke:"#000", strokeThickness:3
     }).setOrigin(0.5, 0).setAlpha(0.7).setDepth(10);
 
-    // ---------- Aktions-Button links (nur wo das Level einen braucht) ----------
-    this.actionArea = null;
-    if (opts.action){
-      const bx = 250, by = H - 250, br = 92;
-
-      this.actionBtn = this.add.circle(bx, by, br, 0x0d2e46, 0.85)
+    // ---------- Aktions-Knöpfe links (nur wo das Level welche braucht) ----------
+    // Ein Level kann zwei haben (z. B. Suchen und Futter). Dann rücken beide
+    // etwas zusammen und bekommen eine Beschriftung.
+    this.actionAreas = [];
+    const mkAction = (bx, by, br, label, unter, evt)=>{
+      const kreis = this.add.circle(bx, by, br, 0x0d2e46, 0.85)
         .setStrokeStyle(4, 0xaad4ff, 0.9).setDepth(10);
-      this.actionTxt = this.add.text(bx, by, opts.label, {
-        fontFamily:"system-ui, sans-serif", fontSize:"34px", color:"#e6f0ff",
-        stroke:"#000", strokeThickness:3
+      const txt = this.add.text(bx, by, label, {
+        fontFamily:"system-ui, sans-serif", fontSize: br > 88 ? "34px" : "30px",
+        color:"#e6f0ff", stroke:"#000", strokeThickness:3
       }).setOrigin(0.5).setDepth(11);
-
-      this.actionBtn.setInteractive(new Phaser.Geom.Circle(br, br, br), Phaser.Geom.Circle.Contains);
-      this.actionBtn.on("pointerdown", ()=>{
-        this.actionBtn.setFillStyle(0x1b5c86, 0.95);
-        this.tweens.add({ targets:[this.actionBtn, this.actionTxt], scale:0.9, duration:70, yoyo:true });
-        this.game.events.emit("touch-action");
+      if (unter){
+        this.add.text(bx, by + br + 16, unter, {
+          fontFamily:"system-ui, sans-serif", fontSize:"20px", color:"#cfe9ff",
+          stroke:"#000", strokeThickness:3
+        }).setOrigin(0.5, 0).setDepth(11).setAlpha(0.85);
+      }
+      kreis.setInteractive(new Phaser.Geom.Circle(br, br, br), Phaser.Geom.Circle.Contains);
+      kreis.on("pointerdown", ()=>{
+        kreis.setFillStyle(0x1b5c86, 0.95);
+        this.tweens.add({ targets:[kreis, txt], scale:0.9, duration:70, yoyo:true });
+        this.game.events.emit(evt);
       });
-      const releaseBtn = ()=> this.actionBtn.setFillStyle(0x0d2e46, 0.85);
-      this.actionBtn.on("pointerup", releaseBtn);
-      this.actionBtn.on("pointerout", releaseBtn);
+      const los = ()=> kreis.setFillStyle(0x0d2e46, 0.85);
+      kreis.on("pointerup", los);
+      kreis.on("pointerout", los);
+      this.actionAreas.push({ x: bx, y: by, r: br + 24 });
+      return kreis;
+    };
 
-      // Bereich, in dem der Joystick nicht anspringen darf
-      this.actionArea = { x: bx, y: by, r: br + 24 };
+    if (opts.action && opts.action2){
+      this.actionBtn  = mkAction(176, H - 250, 82, opts.label,  opts.unter  || "", "touch-action");
+      this.actionBtn2 = mkAction(380, H - 250, 82, opts.label2, opts.unter2 || "", "touch-action2");
+    } else if (opts.action){
+      this.actionBtn = mkAction(250, H - 250, 92, opts.label, opts.unter || "", "touch-action");
     }
 
     // ---------- Menü-Button unten mittig ----------
@@ -221,8 +232,8 @@ export default class TouchScene extends Phaser.Scene {
   }
 
   inActionArea(p){
-    const a = this.actionArea;
-    return !!a && Phaser.Math.Distance.Between(p.x, p.y, a.x, a.y) <= a.r;
+    return (this.actionAreas || []).some(a =>
+      Phaser.Math.Distance.Between(p.x, p.y, a.x, a.y) <= a.r);
   }
   inMenuArea(p){
     const m = this.menuArea;

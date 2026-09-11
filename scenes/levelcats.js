@@ -129,18 +129,22 @@ export default class LevelCats extends Phaser.Scene {
     const toMenu = ()=> this.scene.start("MenuScene");
     this.input.keyboard.on("keydown-ESC", toMenu);
     this.game.events.on("touch-menu", toMenu);
-    const onAction = ()=> this.aktion();
-    this.game.events.on("touch-action", onAction);
-    this.input.keyboard.on("keydown-SPACE", onAction);
-    this.input.keyboard.on("keydown-E", onAction);
+    const onSuchen = ()=> this.aktionSuchen();
+    const onFutter = ()=> this.aktionFutter();
+    this.game.events.on("touch-action",  onSuchen);
+    this.game.events.on("touch-action2", onFutter);
+    this.input.keyboard.on("keydown-SPACE", onSuchen);
+    this.input.keyboard.on("keydown-E", onFutter);
     this.events.once("shutdown", ()=>{
       this.game.events.off("touch-menu", toMenu);
-      this.game.events.off("touch-action", onAction);
+      this.game.events.off("touch-action",  onSuchen);
+      this.game.events.off("touch-action2", onFutter);
       if (this.video){ try { this.video.stop(); } catch(e){} }
       const ts = this.scene.get("TouchScene");
       if (ts) ts.scene.setVisible(true);
     });
-    startTouch(this, { action:true, label:"🐟" });
+    startTouch(this, { action:true,  label:"🔍", unter:"Nachsehen",
+                      action2:true, label2:"🐟", unter2:"Futter" });
 
     this.showIntroLetter();
   }
@@ -340,9 +344,17 @@ Dich davor und drück den Knopf, um nachzusehen.`;
   }
 
   // ---------- Aktionsknopf ----------
-  aktion(){
+  // Linker Knopf: nachsehen. Rechter Knopf: Futter. Getrennt, damit man
+  // auch direkt neben einem Möbel Futter hinlegen kann.
+  aktionSuchen(){
     if (this.fertig || this.introOpen) return;
+    const m = this.naechstesMoebel();
+    if (m){ this.durchsuchen(m); return; }
+    showNote(this, this.note, "Hier gibt es nichts zum Nachsehen.", { ms: 1200 });
+  }
 
+  aktionFutter(){
+    if (this.fertig || this.introOpen) return;
     if (Phaser.Math.Distance.Between(this.player.x, this.player.y, SACK.x, SACK.y) < 190){
       if (this.futter >= 3){ showNote(this, this.note, "Die Taschen sind voll."); return; }
       this.futter = 3;
@@ -351,8 +363,6 @@ Dich davor und drück den Knopf, um nachzusehen.`;
       showNote(this, this.note, "Nachschub eingesteckt.");
       return;
     }
-    const m = this.naechstesMoebel();
-    if (m){ this.durchsuchen(m); return; }
     this.futterHinlegen();
   }
 
@@ -566,8 +576,7 @@ Dich davor und drück den Knopf, um nachzusehen.`;
 
     const nahSack = Phaser.Math.Distance.Between(this.player.x, this.player.y, SACK.x, SACK.y) < 190;
     const m = this.naechstesMoebel();
-    const label = nahSack ? "Futter nachfüllen"
-                : (m ? "Nachsehen" : (this.futter > 0 ? "Futter hinlegen" : ""));
+    const label = nahSack ? "🐟 füllt die Taschen auf" : (m ? "🔍 hier nachsehen" : "");
     this.aktionHint.setText(label);
     this.aktionHint.setPosition(this.player.x, this.player.y - 108);
     this.aktionHint.setAlpha(label ? 0.95 : 0);

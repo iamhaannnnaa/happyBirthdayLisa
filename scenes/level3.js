@@ -988,7 +988,7 @@ und wenn es voll ist, wartet Deine Überraschung.`;
       fontFamily: SERIF, fontSize: "30px", color: "#f6e2bd", fontStyle: "italic",
       stroke: "#2a1608", strokeThickness: 5
     }).setOrigin(0.5);
-    const lampSub2 = this.add.text(0, H*0.415, "Eine Lampe – von Hand gedruckt, nur für Dich.", {
+    const lampSub2 = this.add.text(0, H*0.415, "Hab Dir die Lampe gedruckt und zusammengebaut.", {
       fontFamily: SERIF, fontSize: "22px", color: "#e2caa2",
       stroke: "#2a1608", strokeThickness: 4
     }).setOrigin(0.5);
