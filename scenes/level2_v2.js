@@ -516,15 +516,16 @@ export default class Level2 extends Phaser.Scene {
     this.gameOver = true;
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
-    this.showEndPanel(msg || "Geschafft ist anders …", "Im Menü kannst Du es nochmal versuchen.");
+    this.showEndPanel(msg || "Geschafft ist anders …", "Probier es einfach nochmal.", null, true);
   }
 
-  showEndPanel(title, subtitle, next){
+  showEndPanel(title, subtitle, next, retry){
     makeEndPanel(this, {
       titel: title,
       untertitel: subtitle,
       next: next || null,
-      nextLabel: next ? levelTitle(next) : ""
+      nextLabel: next ? levelTitle(next) : "",
+      retry: retry === true
     });
   }
 

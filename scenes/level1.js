@@ -449,9 +449,9 @@ makeOxygenBar(){
     this.gameOver = true;
     this.physics.world.pause();
     this.player.body.setVelocity(0,0);
-    this.showEndPanel(msg || "Geschafft ist anders …", "Im Menü kannst Du es nochmal versuchen.");
+    this.showEndPanel(msg || "Geschafft ist anders …", "Probier es einfach nochmal.", null, true);
   }
-  showEndPanel(title, subtitle, next){
+  showEndPanel(title, subtitle, next, retry){
     // HUD und Bedienung aus dem Weg
     if (this.uiCoins) this.uiCoins.setVisible(false);
     if (this.oxyBar){
@@ -462,7 +462,8 @@ makeOxygenBar(){
       untertitel: subtitle,
       video: next ? ["assets/video/lisa_ruft.mp4", "assets/video/lisa_ruft.webm"] : null,
       next: next || null,
-      nextLabel: next ? levelTitle(next) : ""
+      nextLabel: next ? levelTitle(next) : "",
+      retry: retry === true
     });
   }
 

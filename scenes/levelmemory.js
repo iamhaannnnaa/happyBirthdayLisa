@@ -41,8 +41,8 @@ export const FRAGEN = [
     frage: "Auf welcher Insel auf den Malediven waren wir als Erstes?",
     antworten: ["Vakarufalhi", "Vilamendhoo", "Ellaidhoo"],
     richtig: 0,
-    foto: null,                       // Bild kommt noch
-    notiz: "Vakarufalhi – die erste von vielen Inseln. Und Mama und Papa sind\nnachgereist und haben uns überrascht."
+    foto: "memo_malediven",
+    notiz: "Vakarufalhi – die erste von vielen Inseln. Und Mama und Papa sind nachgereist und haben uns überrascht."
   },
   {
     frage: "Findest Du Hanna cool?",
@@ -617,15 +617,16 @@ Hast Du alle, geht es weiter.`;
     this.gameOver = true;
     this.physics.world.pause();
     this.player.setVelocity(0,0);
-    this.showEndPanel(msg || "Geschafft ist anders …", "Im Menü kannst Du es nochmal versuchen.");
+    this.showEndPanel(msg || "Geschafft ist anders …", "Probier es einfach nochmal.", null, true);
   }
 
-  showEndPanel(title, subtitle, next){
+  showEndPanel(title, subtitle, next, retry){
     makeEndPanel(this, {
       titel: title,
       untertitel: subtitle,
       next: next || null,
-      nextLabel: next ? levelTitle(next) : ""
+      nextLabel: next ? levelTitle(next) : "",
+      retry: retry === true
     });
   }
 
